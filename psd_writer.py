@@ -84,12 +84,6 @@ def _compress_channel(
         block = struct.pack('>H', 1) + counts_bytes + compressed_data
         return len(block), block
 
-    elif compression == 2:
-        # ZIP (zlib, no prediction) — fast C-extension, good ratio
-        compressed = zlib.compress(raw, level=6)
-        block = struct.pack('>H', 2) + compressed
-        return len(block), block
-
     else:
         raise ValueError(f"Unsupported compression: {compression}")
 
@@ -246,14 +240,11 @@ def write_psd(
         merged_rgb = merged.convert('RGB')
         r_ch, g_ch, b_ch = merged_rgb.split()
 
-        if compression in (0, 2):
-            # RAW or ZIP: write all channel data without per-row byte counts
-            f.write(struct.pack('>H', compression))
+        if compression == 0:
+            # RAW: write all channel data without per-row byte counts
+            f.write(struct.pack('>H', 0))
             for plane in (r_ch, g_ch, b_ch):
-                if compression == 0:
-                    f.write(plane.tobytes())
-                else:
-                    f.write(zlib.compress(plane.tobytes(), level=6))
+                f.write(plane.tobytes())
 
         else:
             # RLE: write per-row byte counts for all channels, then data

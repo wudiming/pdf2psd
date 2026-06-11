@@ -287,10 +287,10 @@ class PDF2PSDApp(ctk.CTk):
             font=ctk.CTkFont(family="Microsoft YaHei", size=13, weight="bold"),
         ).pack(side="left")
 
-        self._compression_var = ctk.StringVar(value="ZIP（推荐）")
+        self._compression_var = ctk.StringVar(value="RAW（最快）")
         self._cmp_seg = ctk.CTkSegmentedButton(
             cmp_card,
-            values=["RAW（最快）", "ZIP（推荐）", "RLE（最小）"],
+            values=["RAW（最快）", "RLE（最小）"],
             variable=self._compression_var,
             font=ctk.CTkFont(family="Microsoft YaHei", size=11),
             selected_color=ACCENT,
@@ -299,13 +299,12 @@ class PDF2PSDApp(ctk.CTk):
         self._cmp_seg.pack(fill="x", padx=16, pady=(0, 6))
 
         cmp_hint_map = {
-            "RAW（最快）": "无压缩，写入最快，文件最大。适合大文件或急用场景。",
-            "ZIP（推荐）": "zlib 压缩，速度快且文件小。需要 Photoshop CS 或更高版本。",
-            "RLE（最小）": "PackBits 压缩，文件最小，写入较慢。兼容所有 PS 版本。",
+            "RAW（最快）": "无压缩写入，速度极快但生成的文件较大。推荐日常使用。",
+            "RLE（最小）": "使用 PackBits 算法压缩，生成的文件最小，但写入较慢。",
         }
         self._cmp_hint = ctk.CTkLabel(
             cmp_card,
-            text=cmp_hint_map["ZIP（推荐）"],
+            text=cmp_hint_map["RAW（最快）"],
             font=ctk.CTkFont(family="Microsoft YaHei", size=10),
             text_color=TEXT_MUTED,
             anchor="w",
@@ -401,8 +400,8 @@ class PDF2PSDApp(ctk.CTk):
 
         def _run():
             try:
-                compression_map = {"RAW（最快）": 0, "ZIP（推荐）": 2, "RLE（最小）": 1}
-                compression = compression_map.get(self._compression_var.get(), 2)
+                compression_map = {"RAW（最快）": 0, "RLE（最小）": 1}
+                compression = compression_map.get(self._compression_var.get(), 0)
                 convert_pdf_to_psd(
                     self._pdf_path,
                     output_path,
