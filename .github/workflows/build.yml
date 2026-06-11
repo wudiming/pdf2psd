@@ -256,7 +256,7 @@ jobs:
         run: |
           mkdir temp_zip
           cp -r photoshop-plugin/cep temp_zip/
-          cp install_plugin.py temp_zip/
+          cp photoshop-plugin/installer_scripts/* temp_zip/
           cd temp_zip
           zip -r ../PDF2PSD-CEP-Plugin.zip .
           cd ..
@@ -348,8 +348,10 @@ jobs:
             > 下载对应的 `PDF2PSD-Plugin-Installer`，双击运行即可自动安装到 Photoshop 中。
             > 安装后重启 PS，在菜单 **窗口 → 扩展功能 → PDF → PSD 图层导入** 即可打开面板。
 
-            **CEP 手动安装**
-            > 下载 `PDF2PSD-CEP-Plugin.zip`，解压后拷贝至 CEP 目录，并右键以管理员运行内的 `.bat` 修复注册表。
+            **CEP 源码压缩包（包含 bat/sh 脚本）**
+            > 下载 `PDF2PSD-CEP-Plugin.zip`，解压后：
+            > - Windows: 右键以管理员身份运行 `install_windows.bat`。或者双击 `enable_debug_mode.reg` 导入注册表后手动复制 `cep` 目录。
+            > - macOS: 在终端执行 `sh install_mac.sh`。
 
             **JSX 脚本（所有 PS 版本）**
             > 下载 `PDF2PSD-jsx-script.jsx`，拷贝到 Photoshop 的 Scripts 目录：

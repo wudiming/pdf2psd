@@ -31,19 +31,20 @@ photoshop-plugin/
 ### 📦 安装方法
 
 **Windows 系统：**
-1. 将 `cep` 文件夹复制到 `C:\Program Files (x86)\Common Files\Adobe\CEP\extensions` 目录下。
-2. （如果文件夹不存在请手动创建）。
-3. 如果这是你第一次使用第三方 CEP 插件，**请右键以管理员身份运行** `cep` 目录里的 `注册表添加_解决插件不显示问题(以管理员运行).bat`。这个操作会开启 PS 的 PlayerDebugMode（允许加载未签名的本地插件）。
-4. 重启 Photoshop。
-5. 在菜单栏点击：**窗口 (Window) → 扩展功能 (Extensions) → PDF → PSD 图层导入**。
+对于下载了 `PDF2PSD-CEP-Plugin.zip` 的用户，解压后会看到几个脚本：
+- **方案 A（自动）**：右键点击 `install_windows.bat`，选择 **“以管理员身份运行”**。脚本会自动将插件复制到正确位置，并修改注册表。
+- **方案 B（全手动）**：双击运行 `enable_debug_mode.reg` 导入注册表（这是必须的，否则面板不显示），然后将 `cep` 文件夹复制到 `C:\Program Files (x86)\Common Files\Adobe\CEP\extensions` 或 `%APPDATA%\Adobe\CEP\extensions` 目录下。
+
+安装后重启 Photoshop，在菜单栏点击：**窗口 (Window) → 扩展功能 (Extensions) → PDF → PSD 图层导入**。
 
 **macOS 系统：**
+对于下载了 `PDF2PSD-CEP-Plugin.zip` 的用户，解压后打开终端（Terminal），将 `install_mac.sh` 拖入终端执行，或者手动执行：
 1. 将 `cep` 文件夹复制到 `/Library/Application Support/Adobe/CEP/extensions/`。
 2. 打开终端，运行命令开启开发者模式（对应你的 PS 版本）：
    ```bash
    defaults write com.adobe.CSXS.11 PlayerDebugMode 1
    ```
-   *(注：数字 11 对应 PS 2022，如果是 2025/2026 可能是 12、13 等，可以都运行一遍)*
+   *(注：数字 11 对应 PS 2022，如果不确定版本，可以运行脚本自动全覆盖写入)*
 
 ### 🎮 使用方式
 1. 打开面板，点击“选择 PDF 文件”。
