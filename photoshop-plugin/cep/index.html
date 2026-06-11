@@ -282,11 +282,11 @@
 
 <!-- Page Count -->
 <div class="card" id="pageCard" style="display:none">
-  <div class="card-label">📄 页数</div>
-  <div class="page-row">
-    <label>总页数：</label>
+  <div class="page-row" style="flex-wrap: wrap; margin-top: 0;">
+    <label>📄 总页数：</label>
     <input class="page-input" type="number" id="pageInput" value="1" min="1" max="9999">
-    <button class="detect-btn" id="detectBtn" onclick="detectPages()">🔍 自动识别</button>
+    <div style="flex-basis: 100%; height: 4px;"></div>
+    <button class="detect-btn" id="detectBtn" onclick="detectPages()" style="width:100%; padding: 8px; border-radius: 6px;">🔍 自动识别</button>
   </div>
   <div class="detect-status" id="detectStatus"></div>
 </div>
@@ -323,8 +323,7 @@
 
 <!-- Footer -->
 <div class="footer" style="margin-top:12px">
-  基于 Photoshop 内置 PDF 引擎 · CEP 面板<br>
-  选择文件后自动识别页数
+  基于 Photoshop 内置 PDF 引擎 · CEP 面板
 </div>
 
 <script src="js/CSInterface.js"></script>
@@ -343,10 +342,12 @@ cs.getSystemPath(SystemPath.EXTENSION, function(p) {
   // Extension path available if needed
 });
 (function showPSVersion() {
-  cs.evalScript('$.appVersion', function(v) {
+  cs.evalScript('app.version', function(v) {
     var badge = document.getElementById('psVersion');
     if (v && v !== 'EvalScript error.') {
-      badge.textContent = 'PS ' + v.split('.')[0];
+      var majorVer = parseInt(v.split('.')[0], 10);
+      var year = 1999 + majorVer;
+      badge.textContent = 'PS ' + year;
     } else {
       badge.textContent = 'PS 检测中';
     }
@@ -458,12 +459,7 @@ function startConvert() {
         var res = JSON.parse(json);
         if (res.ok) {
           setProgress(100, '完成');
-          showResult(true,
-            '✅ 导入完成！<br>' +
-            '文件：' + res.docName + '<br>' +
-            '共导入 <strong>' + res.imported + '</strong> 页，每页为独立图层。<br>' +
-            '<span style="color:var(--muted)">使用「文件 → 存储为」保存为 .psd</span>'
-          );
+          showResult(true, '✅ 导入完成！共导入 <strong>' + res.imported + '</strong> 页为独立图层。');
         } else {
           showResult(false, '❌ 导入失败：' + (res.error || '未知错误'));
         }
