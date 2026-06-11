@@ -156,6 +156,17 @@ function showSettingsDialog() {
         if (f) {
             selectedFile = f;
             fileEdit.text = decodeURI(f.name);
+            pageInput.text = "识别中...";
+            dlg.update(); // 刷新 UI
+            
+            // 自动检测页数
+            var count = getPdfPageCount(f);
+            if (count > 0) {
+                pageInput.text = count;
+            } else {
+                pageInput.text = "10";
+                alert("无法自动识别页数，请手动输入");
+            }
         }
     };
 
@@ -163,8 +174,8 @@ function showSettingsDialog() {
     var pageGroup = dlg.add("group");
     pageGroup.orientation = "row";
     pageGroup.add("statictext", [0,0,120,20], "PDF 总页数：");
-    var pageInput = pageGroup.add("edittext", [0,0,60,22], "10");
-    pageGroup.add("statictext", undefined, "（在 PDF 阅读器中查看）");
+    var pageInput = pageGroup.add("edittext", [0,0,60,22], "1");
+    pageGroup.add("statictext", undefined, "（选择文件后自动识别）");
 
     // ── DPI ───────────────────────────────────────────────────────────────────
     var dpiGroup = dlg.add("group");
@@ -207,4 +218,58 @@ function showSettingsDialog() {
         pages: parseInt(pageInput.text, 10),
         dpi:   dpiValues[dpiDropdown.selection.index]
     };
+}
+
+// ── 自动识别 PDF 页数（指数倍增+二分法）──────────────────────────────────────
+function getPdfPageCount(pdfFile) {
+    var opts = new PDFOpenOptions();
+    opts.suppressWarnings = true;
+    opts.bitsPerChannel   = BitsPerChannelType.EIGHT;
+    opts.colorMode        = OpenDocumentMode.RGB;
+    opts.resolution       = 72;
+    opts.usePageNumber    = true;
+
+    var originalDisplayDialogs = app.displayDialogs;
+    app.displayDialogs = DialogModes.NO;
+
+    function canOpenPage(p) {
+        opts.page = p;
+        try {
+            var d = app.open(pdfFile, opts);
+            d.close(SaveOptions.DONOTSAVECHANGES);
+            return true;
+        } catch(e) {
+            return false;
+        }
+    }
+
+    if (!canOpenPage(1)) {
+        app.displayDialogs = originalDisplayDialogs;
+        return 0;
+    }
+
+    var lo = 1;
+    var hi = 2;
+    while (canOpenPage(hi)) {
+        lo = hi;
+        hi = hi * 2;
+        if (hi > 2000) { hi = 2000; break; }
+    }
+
+    var ans = lo;
+    var low = lo + 1;
+    var high = hi - 1;
+
+    while (low <= high) {
+        var mid = Math.floor((low + high) / 2);
+        if (canOpenPage(mid)) {
+            ans = mid;
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+
+    app.displayDialogs = originalDisplayDialogs;
+    return ans;
 }
