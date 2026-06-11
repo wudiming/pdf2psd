@@ -54,7 +54,7 @@ jobs:
             --console `
             --name "PDF2PSD-Plugin-Installer-Windows" `
             --icon "assets\icon.ico" `
-            --add-data "photoshop-plugin\uxp;plugin_data" `
+            --add-data "photoshop-plugin\cep;cep_data" `
             install_plugin.py
           Move-Item dist\PDF2PSD-Plugin-Installer-Windows.exe PDF2PSD-Plugin-Installer-Windows.exe
 
@@ -119,7 +119,7 @@ jobs:
             --console \
             --name "PDF2PSD-Plugin-Installer-macOS" \
             --icon "assets/icon.icns" \
-            --add-data "photoshop-plugin/uxp:plugin_data" \
+            --add-data "photoshop-plugin/cep:cep_data" \
             install_plugin.py
           mv dist/PDF2PSD-Plugin-Installer-macOS PDF2PSD-Plugin-Installer-macOS
 

@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF → PSD 图层导入</title>
+<style>
+  /* ── Reset & Base ─────────────────────────────── */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #1a1d2e;
+    --card:      #22263a;
+    --border:    #2e3450;
+    --accent:    #4a9eff;
+    --accent-h:  #3a8eef;
+    --success:   #4ecf88;
+    --error:     #ff5c72;
+    --warn:      #f0a030;
+    --text:      #e8ecf4;
+    --muted:     #7a84a0;
+    --radius:    10px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    font-size: 12px;
+    padding: 12px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Header ──────────────────────────────────── */
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-icon { font-size: 22px; }
+  .header-title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .header-title span { color: var(--accent); }
+  .header-badge {
+    margin-left: auto;
+    background: var(--border);
+    color: var(--muted);
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 20px;
+  }
+
+  /* ── Card ────────────────────────────────────── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    transition: border-color .2s;
+  }
+  .card-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    margin-bottom: 8px;
+  }
+
+  /* ── Drop Zone ───────────────────────────────── */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 20px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .25s;
+    margin-bottom: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+  .drop-zone:hover { border-color: var(--accent); background: rgba(74,158,255,.05); }
+  .drop-zone.selected { border-color: var(--accent); border-style: solid; }
+  .drop-zone .dz-icon { font-size: 32px; display: block; margin-bottom: 6px; }
+  .drop-zone .dz-text { color: var(--text); font-weight: 600; font-size: 12px; }
+  .drop-zone .dz-sub  { color: var(--muted); font-size: 10px; margin-top: 3px; }
+
+  /* ── Page Count Row ──────────────────────────── */
+  .page-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .page-row label { color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+  .page-input {
+    width: 60px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 4px 8px;
+    font-size: 12px;
+    font-family: inherit;
+    text-align: center;
+    transition: border-color .2s;
+    flex-shrink: 0;
+  }
+  .page-input:focus { outline: none; border-color: var(--accent); }
+  .detect-btn {
+    flex: 1;
+    background: rgba(74,158,255,.12);
+    border: 1px solid rgba(74,158,255,.3);
+    border-radius: 6px;
+    color: var(--accent);
+    padding: 4px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: all .2s;
+  }
+  .detect-btn:hover { background: rgba(74,158,255,.22); }
+  .detect-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .detect-status {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 5px;
+    min-height: 14px;
+    transition: color .2s;
+  }
+  .detect-status.ok    { color: var(--success); }
+  .detect-status.error { color: var(--error); }
+  .detect-status.spin  { color: var(--warn); }
+
+  /* ── DPI ─────────────────────────────────────── */
+  .dpi-presets {
+    display: flex;
+    gap: 5px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+  .dpi-btn {
+    flex: 1;
+    min-width: 55px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    padding: 5px 4px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: center;
+    transition: all .2s;
+  }
+  .dpi-btn:hover  { border-color: var(--accent); color: var(--text); }
+  .dpi-btn.active { border-color: var(--accent); background: rgba(74,158,255,.15); color: var(--accent); font-weight: 700; }
+
+  /* ── Progress ────────────────────────────────── */
+  .progress-wrap { display: none; margin-bottom: 10px; }
+  .progress-wrap.show { display: block; }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+  .progress-msg  { font-size: 11px; color: var(--muted); }
+  .progress-pct  { font-size: 11px; color: var(--accent); font-weight: 700; }
+  .progress-bar-bg {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #7bb8ff);
+    border-radius: 3px;
+    width: 0%;
+    transition: width .4s ease;
+  }
+
+  /* ── Convert Button ──────────────────────────── */
+  .convert-btn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-h));
+    border: none;
+    border-radius: var(--radius);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: inherit;
+    padding: 13px;
+    cursor: pointer;
+    letter-spacing: .5px;
+    transition: all .25s;
+    box-shadow: 0 4px 15px rgba(74,158,255,.3);
+    position: relative;
+    overflow: hidden;
+  }
+  .convert-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0);
+    transition: background .2s;
+  }
+  .convert-btn:hover::after { background: rgba(255,255,255,.1); }
+  .convert-btn:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  /* ── Result ──────────────────────────────────── */
+  .result-msg {
+    font-size: 11px;
+    padding: 9px 12px;
+    border-radius: 7px;
+    margin-bottom: 10px;
+    display: none;
+    line-height: 1.55;
+    animation: fadeIn .3s ease;
+  }
+  .result-msg.show { display: block; }
+  .result-msg.success { background: rgba(78,207,136,.12); border: 1px solid rgba(78,207,136,.3); color: var(--success); }
+  .result-msg.error   { background: rgba(255,92,114,.12);  border: 1px solid rgba(255,92,114,.3);  color: var(--error);   }
+
+  @keyframes fadeIn { from { opacity:0; transform: translateY(-4px); } to { opacity:1; transform: none; } }
+
+  /* ── Footer ──────────────────────────────────── */
+  .footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 10px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+    line-height: 1.6;
+  }
+
+  /* ── Spinner animation ───────────────────────── */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border: 2px solid rgba(74,158,255,.3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    vertical-align: middle;
+    margin-right: 4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <span class="header-icon">📄</span>
+  <div>
+    <div class="header-title"><span>PDF</span> → PSD 图层导入</div>
+  </div>
+  <span class="header-badge" id="psVersion">PS 检测中…</span>
+</div>
+
+<!-- File Selector -->
+<div class="drop-zone" id="dropZone" onclick="selectFile()">
+  <span class="dz-icon" id="dzIcon">📂</span>
+  <div class="dz-text" id="dzText">点击选择 PDF 文件</div>
+  <div class="dz-sub"  id="dzSub">支持多页 PDF，每页转为独立图层</div>
+</div>
+
+<!-- Page Count -->
+<div class="card" id="pageCard" style="display:none">
+  <div class="card-label">📄 页数</div>
+  <div class="page-row">
+    <label>总页数：</label>
+    <input class="page-input" type="number" id="pageInput" value="1" min="1" max="9999">
+    <button class="detect-btn" id="detectBtn" onclick="detectPages()">🔍 自动识别</button>
+  </div>
+  <div class="detect-status" id="detectStatus"></div>
+</div>
+
+<!-- DPI -->
+<div class="card" id="dpiCard" style="display:none">
+  <div class="card-label">🖥 渲染分辨率</div>
+  <div class="dpi-presets">
+    <button class="dpi-btn" data-dpi="72"  onclick="setDPI(this)">72<br><span style="color:var(--muted)">屏幕</span></button>
+    <button class="dpi-btn" data-dpi="150" onclick="setDPI(this)">150<br><span style="color:var(--muted)">标准</span></button>
+    <button class="dpi-btn active" data-dpi="200" onclick="setDPI(this)">200<br><span style="color:var(--muted)">高清</span></button>
+    <button class="dpi-btn" data-dpi="300" onclick="setDPI(this)">300<br><span style="color:var(--muted)">印刷</span></button>
+  </div>
+</div>
+
+<!-- Progress -->
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-label">
+    <span class="progress-msg" id="progressMsg">准备中…</span>
+    <span class="progress-pct" id="progressPct">0%</span>
+  </div>
+  <div class="progress-bar-bg">
+    <div class="progress-bar-fill" id="progressFill"></div>
+  </div>
+</div>
+
+<!-- Result -->
+<div class="result-msg" id="resultMsg"></div>
+
+<!-- Convert Button -->
+<button class="convert-btn" id="convertBtn" disabled onclick="startConvert()">
+  开始导入
+</button>
+
+<!-- Footer -->
+<div class="footer" style="margin-top:12px">
+  基于 Photoshop 内置 PDF 引擎 · CEP 面板<br>
+  选择文件后自动识别页数
+</div>
+
+<script src="js/CSInterface.js"></script>
+<script>
+// ─── Init ──────────────────────────────────────────────────────────────────
+var cs = new CSInterface();
+var selectedPath = null;
+var selectedDPI  = 200;
+var isConverting = false;
+
+// Show PS version badge
+cs.getApplicationID(function(id) {
+  // PHSP = Photoshop; version is in system info
+});
+cs.getSystemPath(SystemPath.EXTENSION, function(p) {
+  // Extension path available if needed
+});
+(function showPSVersion() {
+  cs.evalScript('$.appVersion', function(v) {
+    var badge = document.getElementById('psVersion');
+    if (v && v !== 'EvalScript error.') {
+      badge.textContent = 'PS ' + v.split('.')[0];
+    } else {
+      badge.textContent = 'PS 检测中';
+    }
+  });
+})();
+
+// ─── File Selection ────────────────────────────────────────────────────────
+function selectFile() {
+  if (isConverting) return;
+  cs.evalScript('selectPDFFile()', function(result) {
+    if (!result || result === '' || result === 'EvalScript error.') return;
+    selectedPath = result;
+    var fileName = decodeURIComponent(result.split('/').pop().split('\\').pop());
+
+    var dz = document.getElementById('dropZone');
+    dz.classList.add('selected');
+    document.getElementById('dzIcon').textContent = '✅';
+    document.getElementById('dzText').textContent = fileName;
+    document.getElementById('dzSub').textContent  = '已选择 · 点击重新选择';
+
+    document.getElementById('pageCard').style.display  = 'block';
+    document.getElementById('dpiCard').style.display   = 'block';
+    document.getElementById('convertBtn').disabled     = false;
+    document.getElementById('resultMsg').classList.remove('show');
+
+    // Auto detect pages after selection
+    detectPages();
+  });
+}
+
+// ─── Auto-detect Page Count ────────────────────────────────────────────────
+function detectPages() {
+  if (!selectedPath) return;
+  var btn  = document.getElementById('detectBtn');
+  var stat = document.getElementById('detectStatus');
+
+  btn.disabled = true;
+  stat.className = 'detect-status spin';
+  stat.innerHTML = '<span class="spinner"></span>正在识别页数…';
+
+  var escaped = selectedPath.replace(/\\/g, '/');
+  cs.evalScript('getPageCount("' + escaped + '")', function(json) {
+    btn.disabled = false;
+    try {
+      var res = JSON.parse(json);
+      if (res.ok) {
+        document.getElementById('pageInput').value = res.count;
+        stat.className = 'detect-status ok';
+        stat.textContent = '✅ 识别成功：共 ' + res.count + ' 页';
+      } else {
+        stat.className = 'detect-status error';
+        stat.textContent = '⚠ 自动识别失败：' + res.error + '（请手动输入）';
+      }
+    } catch(e) {
+      stat.className = 'detect-status error';
+      stat.textContent = '⚠ 解析结果失败，请手动输入页数';
+    }
+  });
+}
+
+// ─── DPI Selection ─────────────────────────────────────────────────────────
+function setDPI(el) {
+  document.querySelectorAll('.dpi-btn').forEach(function(b) { b.classList.remove('active'); });
+  el.classList.add('active');
+  selectedDPI = parseInt(el.getAttribute('data-dpi'), 10);
+}
+
+// ─── Start Conversion ──────────────────────────────────────────────────────
+function startConvert() {
+  if (!selectedPath || isConverting) return;
+
+  var pages = parseInt(document.getElementById('pageInput').value, 10);
+  if (isNaN(pages) || pages < 1) {
+    showResult(false, '请输入有效的页数（大于 0 的整数）');
+    return;
+  }
+
+  isConverting = true;
+  document.getElementById('convertBtn').disabled = true;
+  document.getElementById('convertBtn').textContent = '导入中…';
+  document.getElementById('progressWrap').classList.add('show');
+  document.getElementById('resultMsg').classList.remove('show');
+
+  setProgress(0, '正在调用 Photoshop…');
+
+  // Simulate per-page progress via polling (JSX is synchronous, can't callback mid-run)
+  var pollInterval = null;
+  var startTime = Date.now();
+  var estimatedMs = pages * 1500 + 2000; // rough estimate
+
+  pollInterval = setInterval(function() {
+    var elapsed = Date.now() - startTime;
+    var pct = Math.min(92, Math.round((elapsed / estimatedMs) * 100));
+    var page = Math.min(pages, Math.max(1, Math.round((elapsed / estimatedMs) * pages)));
+    setProgress(pct, '正在处理第 ' + page + ' / ' + pages + ' 页…');
+  }, 400);
+
+  var escaped = selectedPath.replace(/\\/g, '/');
+  cs.evalScript(
+    'importPDFAsLayers("' + escaped + '", ' + pages + ', ' + selectedDPI + ')',
+    function(json) {
+      clearInterval(pollInterval);
+      isConverting = false;
+      document.getElementById('convertBtn').disabled = false;
+      document.getElementById('convertBtn').textContent = '开始导入';
+      document.getElementById('progressWrap').classList.remove('show');
+
+      try {
+        var res = JSON.parse(json);
+        if (res.ok) {
+          setProgress(100, '完成');
+          showResult(true,
+            '✅ 导入完成！<br>' +
+            '文件：' + res.docName + '<br>' +
+            '共导入 <strong>' + res.imported + '</strong> 页，每页为独立图层。<br>' +
+            '<span style="color:var(--muted)">使用「文件 → 存储为」保存为 .psd</span>'
+          );
+        } else {
+          showResult(false, '❌ 导入失败：' + (res.error || '未知错误'));
+        }
+      } catch(e) {
+        showResult(false, '❌ 结果解析失败，请检查 Photoshop 是否正常运行');
+      }
+    }
+  );
+}
+
+function setProgress(pct, msg) {
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressPct').textContent  = pct + '%';
+  document.getElementById('progressMsg').textContent  = msg;
+}
+
+function showResult(ok, html) {
+  var el = document.getElementById('resultMsg');
+  el.className = 'result-msg show ' + (ok ? 'success' : 'error');
+  el.innerHTML = html;
+}
+</script>
+</body>
+</html>
