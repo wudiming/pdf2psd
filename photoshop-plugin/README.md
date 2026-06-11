@@ -1,6 +1,6 @@
 # Photoshop 插件说明
 
-本目录包含两种 Photoshop 插件形式，功能相同：将多页 PDF 导入为 Photoshop 图层。
+本目录包含两种 Photoshop 插件形式，功能完全相同：**将多页 PDF 完美导入为 Photoshop 图层**。
 
 ---
 
@@ -8,28 +8,58 @@
 
 ```
 photoshop-plugin/
-├── jsx/                   ← ExtendScript 脚本（所有 PS 版本）
-│   └── pdf_to_layers.jsx
-└── uxp/                   ← UXP 面板插件（PS 2021+）
-    ├── manifest.json
-    ├── index.html
-    ├── index.js
-    ├── styles.css
-    └── lib/               ← 需要手动放入 PDF.js 文件
-        ├── pdf.min.js
-        └── pdf.worker.min.js
+├── cep/                   ← CEP 扩展面板（推荐，支持 PS CC 2015 - 2026+）
+│   ├── index.html
+│   ├── CSXS/
+│   ├── js/
+│   ├── jsx/
+│   └── 注册表添加_解决插件不显示问题(以管理员运行).bat
+└── jsx/                   ← 独立 ExtendScript 脚本（兼容所有 PS 版本）
+    └── pdf_to_layers.jsx
 ```
 
 ---
 
-## 方案一：ExtendScript .jsx（推荐，兼容所有 PS 版本）
+## 方案一：CEP 扩展面板（🌟 强烈推荐）
 
 ### ✅ 优点
-- 适用于所有 Photoshop 版本（CS5 以上）
-- 使用 PS 自带 PDF 渲染引擎，质量最佳
-- 无需额外配置
+- **完美融合**：现代化的暗色 UI 界面，像官方功能一样嵌入在侧边栏。
+- **全自动探测**：选入 PDF 后自动使用指数倍增与二分法精准探测 PDF 总页数。
+- **无损画质**：调用 PS 原生内核，100% 完美保留 CMYK/RGB 色彩、矢量细节与透明通道。
+- **跨版本兼容**：向下兼容至 Photoshop CC 2015，向上兼容至最新的 2026+。
 
 ### 📦 安装方法
+
+**Windows 系统：**
+1. 将 `cep` 文件夹复制到 `C:\Program Files (x86)\Common Files\Adobe\CEP\extensions` 目录下。
+2. （如果文件夹不存在请手动创建）。
+3. 如果这是你第一次使用第三方 CEP 插件，**请右键以管理员身份运行** `cep` 目录里的 `注册表添加_解决插件不显示问题(以管理员运行).bat`。这个操作会开启 PS 的 PlayerDebugMode（允许加载未签名的本地插件）。
+4. 重启 Photoshop。
+5. 在菜单栏点击：**窗口 (Window) → 扩展功能 (Extensions) → PDF → PSD 图层导入**。
+
+**macOS 系统：**
+1. 将 `cep` 文件夹复制到 `/Library/Application Support/Adobe/CEP/extensions/`。
+2. 打开终端，运行命令开启开发者模式（对应你的 PS 版本）：
+   ```bash
+   defaults write com.adobe.CSXS.11 PlayerDebugMode 1
+   ```
+   *(注：数字 11 对应 PS 2022，如果是 2025/2026 可能是 12、13 等，可以都运行一遍)*
+
+### 🎮 使用方式
+1. 打开面板，点击“选择 PDF 文件”。
+2. 插件会自动探测出总页数（如有需要可手动修改）。
+3. 设置渲染分辨率（DPI）以及图层命名偏好。
+4. 点击“开始导入”，享受全自动的高速转换！
+
+---
+
+## 方案二：独立 ExtendScript 脚本（.jsx）
+
+### ✅ 优点
+- **终极兼容**：甚至可以运行在十几年前的 Photoshop CS5 / CS6 上。
+- **免安装**：零配置，直接运行。
+
+### 📦 安装与运行
 
 **方法 A — 永久安装（推荐）**
 
@@ -44,76 +74,10 @@ photoshop-plugin/
 
 **方法 B — 临时运行**
 
-菜单：**文件 → 脚本 → 浏览** → 选择 `pdf_to_layers.jsx`
+在 Photoshop 顶部菜单点击：**文件 → 脚本 → 浏览** → 选择你的 `pdf_to_layers.jsx` 文件即可直接运行。
 
 ### 🎮 使用方式
-1. 运行脚本后会弹出设置对话框
-2. 点击「浏览」选择 PDF 文件
-3. 输入 PDF 总页数（在 PDF 阅读器中查看）
-4. 选择 DPI，点击「开始转换」
-
-> ⚠️ 需要提前知道 PDF 页数（在 macOS 预览/Adobe Reader 中查看）
-
----
-
-## 方案二：UXP 插件（PS 2021+ 的现代面板插件）
-
-### ✅ 优点
-- 嵌入 Photoshop 面板，无需每次通过菜单运行
-- 现代暗色 UI
-- 实时进度显示
-- 不需要输入页数，自动识别
-
-### 📦 前置步骤：下载 PDF.js
-
-UXP 插件依赖 PDF.js 渲染库，需要手动下载并放入 `uxp/lib/` 目录：
-
-```bash
-# 创建 lib 目录
-mkdir photoshop-plugin/uxp/lib
-
-# 从 CDN 下载（或访问 https://mozilla.github.io/pdf.js/getting_started/）
-# 下载 pdfjs-dist，取其中：
-#   build/pdf.min.js
-#   build/pdf.worker.min.js
-# 放入 uxp/lib/ 目录
-```
-
-或直接从 npm 获取：
-```bash
-cd photoshop-plugin/uxp
-npm install pdfjs-dist
-copy node_modules\pdfjs-dist\build\pdf.min.js lib\
-copy node_modules\pdfjs-dist\build\pdf.worker.min.js lib\
-```
-
-### 📦 安装到 Photoshop
-
-**方法 A — UXP Developer Tool（开发者模式）**
-
-1. 安装 [Adobe UXP Developer Tool](https://developer.adobe.com/photoshop/uxp/2022/guides/devtool/)
-2. 点击 `Add Plugin` → 选择 `uxp/manifest.json`
-3. 点击 `Load` 加载插件
-
-**方法 B — 打包分发**
-
-使用 Adobe UXP Developer Tool 的 `Package` 功能，生成 `.ccx` 文件，双击即可安装。
-
-### 🎮 使用方式
-1. 在 PS 中打开插件面板：**插件 → PDF → PSD**
-2. 点击面板中的文件区域选择 PDF
-3. 调整 DPI
-4. 点击「开始转换」，进度实时显示
-
----
-
-## 对比
-
-| | JSX 脚本 | UXP 插件 |
-|---|---|---|
-| PS 版本要求 | 所有版本 | PS 2021+ |
-| 安装难度 | ⭐ 极简 | ⭐⭐⭐ |
-| UI 体验 | 对话框 | 嵌入面板 |
-| PDF 渲染 | PS 原生 | PDF.js |
-| 需要输入页数 | ✅ 是 | ❌ 自动 |
-| 运行方式 | 文件→脚本 | 插件面板 |
+1. 运行脚本后，会弹出一个非常干净的原生对话框。
+2. 点击「选择文件」定位到 PDF。
+3. 如果未自动探测出页数，请手动输入。
+4. 选择渲染 DPI，点击「开始导入」。

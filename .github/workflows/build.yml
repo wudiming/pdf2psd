@@ -242,7 +242,7 @@ jobs:
           retention-days: 7
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 🔌 Photoshop 插件 — 打包 UXP .ccx + JSX 脚本
+# 🔌 Photoshop 插件 — 打包 CEP 扩展 + JSX 脚本
 # ══════════════════════════════════════════════════════════════════════════════
   build-plugin:
     name: 🔌 Photoshop Plugin
@@ -252,26 +252,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Package UXP plugin as .ccx
+      - name: Package CEP plugin as .zip
         run: |
-          cd photoshop-plugin/uxp
-          # .ccx 就是 ZIP 改后缀；排除开发用文件
-          zip -r ../../PDF2PSD-Photoshop-Plugin.ccx . \
-            --exclude "node_modules/*" \
-            --exclude ".gitignore" \
-            --exclude "package.json" \
-            --exclude "package-lock.json"
+          cd photoshop-plugin/cep
+          zip -r ../../PDF2PSD-CEP-Plugin.zip .
           cd ../..
-          echo "CCX size: $(du -sh PDF2PSD-Photoshop-Plugin.ccx)"
 
       - name: Copy JSX script
         run: cp photoshop-plugin/jsx/pdf_to_layers.jsx PDF2PSD-jsx-script.jsx
 
-      - name: Upload CCX artifact
+      - name: Upload CEP artifact
         uses: actions/upload-artifact@v4
         with:
-          name: build-plugin-ccx
-          path: PDF2PSD-Photoshop-Plugin.ccx
+          name: build-plugin-cep
+          path: PDF2PSD-CEP-Plugin.zip
           retention-days: 7
 
       - name: Upload JSX artifact
@@ -309,10 +303,10 @@ jobs:
           name: build-linux
           path: artifacts/
 
-      - name: Download Plugin CCX
+      - name: Download Plugin CEP
         uses: actions/download-artifact@v4
         with:
-          name: build-plugin-ccx
+          name: build-plugin-cep
           path: artifacts/
 
       - name: Download Plugin JSX
@@ -339,8 +333,8 @@ jobs:
             | 🪟 Windows 独立工具 | `PDF2PSD-Windows.exe` | 双击直接运行 |
             | 🍎 macOS 独立工具 | `PDF2PSD-macOS.dmg` | 挂载后拖 .app 到任意位置运行 |
             | 🐧 Linux 独立工具 | `PDF2PSD-Linux.AppImage` | `chmod +x` 后运行 |
-            | 🔌 PS 插件**一键安装** | `PDF2PSD-Plugin-Installer-Windows.exe` <br> `PDF2PSD-Plugin-Installer-macOS` | **推荐！双击直接安装到 PS，无签名限制** |
-            | 🔌 PS 插件（UXP源码） | `PDF2PSD-Photoshop-Plugin.ccx` | 需开发者模式 |
+            | 🔌 PS 插件**一键安装** | `PDF2PSD-Plugin-Installer-Windows.exe` <br> `PDF2PSD-Plugin-Installer-macOS` | **强烈推荐！双击直接安装至 PS CEP 目录并修复注册表** |
+            | 🔌 PS 插件（CEP 源码） | `PDF2PSD-CEP-Plugin.zip` | 包含源码与手动安装脚本 |
             | 📜 PS 脚本（JSX） | `PDF2PSD-jsx-script.jsx` | 拷贝到 PS Scripts 目录 |
 
             ---
@@ -349,11 +343,10 @@ jobs:
 
             **✨ 推荐方法：使用一键安装包（免除签名与开发者模式限制）**
             > 下载对应的 `PDF2PSD-Plugin-Installer`，双击运行即可自动安装到 Photoshop 中。
-            > 安装后重启 PS，在菜单 **插件 → PDF2PSD** 即可打开面板。
+            > 安装后重启 PS，在菜单 **窗口 → 扩展功能 → PDF → PSD 图层导入** 即可打开面板。
 
-            **UXP 插件打包文件（需开启开发者模式）**
-            > 下载 `PDF2PSD-Photoshop-Plugin.ccx`，双击即可安装到 Photoshop。
-            > 安装后在菜单 **插件 → PDF2PSD** 打开面板。
+            **CEP 手动安装**
+            > 下载 `PDF2PSD-CEP-Plugin.zip`，解压后拷贝至 CEP 目录，并右键以管理员运行内的 `.bat` 修复注册表。
 
             **JSX 脚本（所有 PS 版本）**
             > 下载 `PDF2PSD-jsx-script.jsx`，拷贝到 Photoshop 的 Scripts 目录：
@@ -376,7 +369,7 @@ jobs:
             artifacts/PDF2PSD-Windows.exe
             artifacts/PDF2PSD-macOS.dmg
             artifacts/PDF2PSD-Linux.AppImage
-            artifacts/PDF2PSD-Photoshop-Plugin.ccx
+            artifacts/PDF2PSD-CEP-Plugin.zip
             artifacts/PDF2PSD-jsx-script.jsx
             artifacts/PDF2PSD-Plugin-Installer-Windows.exe
             artifacts/PDF2PSD-Plugin-Installer-macOS
