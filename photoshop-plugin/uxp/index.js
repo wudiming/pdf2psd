@@ -94,166 +94,173 @@ function getLayerName(index, total) {
     return `Page ${index}`;
 }
 
+// ── PDF 核心功能：使用 Photoshop 原生 PDF 引擎 ────────────────────────────────
+const { batchPlay } = require("photoshop").action;
+
+async function canOpenPage(entry, pageNum) {
+    try {
+        const token = await localFS.createSessionToken(entry);
+        await batchPlay([{
+            _obj: "open",
+            "null": { _path: token, _kind: "local" },
+            "as": {
+                _class: "PDFGenericFormat",
+                pageNumber: pageNum,
+                mode: { _class: "RGBColorMode" },
+                resolution: { _unit: "densityUnit", _value: 72 },
+                suppressWarnings: true
+            }
+        }], {});
+
+        // 成功打开的话，关闭它
+        if (app.activeDocument) {
+            await app.activeDocument.closeWithoutSaving();
+        }
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+async function getPdfPageCount(entry) {
+    if (!(await canOpenPage(entry, 1))) return 0;
+
+    let lo = 1;
+    let hi = 2;
+    while (await canOpenPage(entry, hi)) {
+        lo = hi;
+        hi = hi * 2;
+        if (hi > 2000) { hi = 2000; break; }
+    }
+
+    let ans = lo;
+    let low = lo + 1;
+    let high = hi - 1;
+
+    while (low <= high) {
+        let mid = Math.floor((low + high) / 2);
+        if (await canOpenPage(entry, mid)) {
+            ans = mid;
+            low = mid + 1;
+        } else {
+            high = mid - 1;
+        }
+    }
+    return ans;
+}
+
 // ── 主转换流程 ────────────────────────────────────────────────────────────────
 async function startConvert() {
     if (!selectedFileEntry || isConverting) return;
 
     const dpi = parseInt(document.getElementById("dpiSlider").value, 10);
-    const scale = dpi / 72;    // PDF 默认 72 DPI
 
     isConverting = true;
     document.getElementById("convertBtn").disabled = true;
     document.getElementById("convertBtn").textContent = "转换中…";
-    setProgress(0, 1, "正在加载 PDF.js…");
-    setStatus("正在初始化…");
-
+    
     try {
-        // ── 1. 动态加载 PDF.js (CDN bundled as local copy) ──────────────────
-        const pdfjsLib = await loadPDFJS();
-
-        // ── 2. 读取 PDF 文件 ─────────────────────────────────────────────────
-        setProgress(0, 1, "读取 PDF 文件…");
-        const arrayBuffer = await selectedFileEntry.read({ format: uxpStorage.formats.binary });
-        const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const totalPages = pdfDoc.numPages;
-
-        setStatus(`共 ${totalPages} 页，开始渲染…`);
-        setProgress(0, totalPages, `准备渲染 ${totalPages} 页…`);
-
-        // ── 3. 渲染每页为 ImageData ──────────────────────────────────────────
-        const pageImages = [];  // Array of { width, height, data: Uint8Array (RGBA) }
-
-        for (let i = 1; i <= totalPages; i++) {
-            setProgress(i - 1, totalPages, `渲染第 ${i} / ${totalPages} 页…`);
-
-            const page = await pdfDoc.getPage(i);
-            const vp   = page.getViewport({ scale });
-
-            // 用离屏 canvas 渲染
-            const canvas  = document.createElement("canvas");
-            canvas.width  = Math.round(vp.width);
-            canvas.height = Math.round(vp.height);
-
-            const ctx = canvas.getContext("2d");
-            await page.render({ canvasContext: ctx, viewport: vp }).promise;
-
-            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            pageImages.push({
-                width:  canvas.width,
-                height: canvas.height,
-                data:   new Uint8Array(imgData.data.buffer),  // RGBA
-            });
-        }
-
-        // ── 4. 确定画布尺寸（取最大页面） ────────────────────────────────────
-        const canvasW = Math.max(...pageImages.map(p => p.width));
-        const canvasH = Math.max(...pageImages.map(p => p.height));
-
-        // ── 5. 在 Photoshop 中创建文档并写入图层 ─────────────────────────────
-        setProgress(totalPages, totalPages, "正在创建 Photoshop 文档…");
-        setStatus("正在写入 Photoshop…");
-
         await core.executeAsModal(async (executionContext) => {
+            
+            setProgress(0, 1, "正在探测 PDF 页数…");
+            setStatus("正在探测 PDF 页数…");
+            
+            const totalPages = await getPdfPageCount(selectedFileEntry);
+            if (totalPages === 0) {
+                throw new Error("无法打开该 PDF 文件");
+            }
+            
+            setStatus(`共识别出 ${totalPages} 页，开始导入…`);
+            setProgress(0, totalPages, `准备导入 ${totalPages} 页…`);
 
             const docName = selectedFileEntry.name.replace(/\.pdf$/i, "");
+            let masterDoc = null;
+            let succeeded = 0;
 
-            // 创建新文档
-            const psDoc = await app.createDocument({
-                width:      canvasW,
-                height:     canvasH,
-                resolution: dpi,
-                mode:       constants.ColorMode.RGB,
-                fill:       constants.DocumentFill.TRANSPARENT,
-                name:       docName,
-            });
+            for (let i = 1; i <= totalPages; i++) {
+                setProgress(i - 1, totalPages, `正在导入第 ${i} / ${totalPages} 页…`);
 
-            // 删除默认图层（Background）
-            if (psDoc.layers.length > 0) {
-                try { await psDoc.layers[0].delete(); } catch (_) {}
+                const token = await localFS.createSessionToken(selectedFileEntry);
+                
+                // 打开该页
+                try {
+                    await batchPlay([{
+                        _obj: "open",
+                        "null": { _path: token, _kind: "local" },
+                        "as": {
+                            _class: "PDFGenericFormat",
+                            pageNumber: i,
+                            mode: { _class: "RGBColorMode" },
+                            resolution: { _unit: "densityUnit", _value: dpi },
+                            antiAlias: true,
+                            suppressWarnings: true,
+                            cropPage: { _enum: "cropTo", _value: "mediaBox" }
+                        }
+                    }], {});
+                } catch (e) {
+                    if (i === 1) throw new Error("无法打开第一页");
+                    break; 
+                }
+
+                const pageDoc = app.activeDocument;
+                if (!pageDoc) break;
+
+                // 创建主文档
+                if (i === 1) {
+                    masterDoc = await app.createDocument({
+                        width: pageDoc.width,
+                        height: pageDoc.height,
+                        resolution: dpi,
+                        mode: constants.ColorMode.RGB,
+                        fill: constants.DocumentFill.TRANSPARENT,
+                        name: docName,
+                    });
+                }
+
+                // 激活回单页文档
+                app.activeDocument = pageDoc;
+                
+                // 获取活动图层并改名
+                const pdfLayer = pageDoc.activeLayers[0];
+                if (pdfLayer) {
+                    pdfLayer.name = getLayerName(i, totalPages);
+                    // 复制图层到主文档（完美保留透明度）
+                    await pdfLayer.duplicate(masterDoc);
+                }
+
+                await pageDoc.closeWithoutSaving();
+                succeeded++;
             }
 
-            // 逐页创建像素图层
-            for (let i = 0; i < pageImages.length; i++) {
-                const pg = pageImages[i];
-                setProgress(i + 1, pageImages.length, `写入图层 ${i + 1} / ${pageImages.length}…`);
+            if (!masterDoc || succeeded === 0) {
+                throw new Error("没有任何页面被成功导入");
+            }
 
-                // 创建图层
-                const layer = await psDoc.createLayer({
-                    name: getLayerName(i + 1, totalPages),
-                    type: constants.LayerType.LAYER,
-                });
-
-                // 将 RGBA 数据写入图层
-                // 需要转换为 RGB（PS putPixels 接受 RGB 或 RGBA）
-                const imageObj = {
-                    imageData: pg.data,
-                    width:     pg.width,
-                    height:    pg.height,
-                    components: 4,      // RGBA
-                    chunky:    true,
-                    colorProfile: "sRGB IEC61966-2.1",
-                    colorSpace: constants.ColorSpace.RGB,
-                };
-
-                // 计算偏移（居中小于画布的页面）
-                const offsetX = Math.floor((canvasW - pg.width)  / 2);
-                const offsetY = Math.floor((canvasH - pg.height) / 2);
-
-                await imaging.putPixels({
-                    layerID:   layer.id,
-                    imageData: await imaging.createImageDataFromBuffer(
-                        pg.data,
-                        { width: pg.width, height: pg.height, components: 4, chunky: true }
-                    ),
-                    targetBounds: {
-                        left:   offsetX,
-                        top:    offsetY,
-                        right:  offsetX + pg.width,
-                        bottom: offsetY + pg.height,
+            // 激活主文档并清理默认的空背景层
+            app.activeDocument = masterDoc;
+            if (masterDoc.layers.length > succeeded) {
+                try {
+                    const lastLayer = masterDoc.layers[masterDoc.layers.length - 1];
+                    if (lastLayer.name === "Layer 1" || lastLayer.name === "图层 1") {
+                        await lastLayer.delete();
                     }
-                });
+                } catch (_) {}
             }
 
-        }, { commandName: "PDF → PSD 转换" });
+            setProgress(totalPages, totalPages, "完成");
+            setStatus(`✅ 转换完成！共 ${succeeded} 页图层`, "success");
 
-        // ── 6. 完成 ──────────────────────────────────────────────────────────
-        setProgress(0, 0);
-        setStatus(`✅ 转换完成！共 ${totalPages} 页图层`, "success");
+        }, { commandName: "PDF → PSD 导入" });
 
     } catch (e) {
         setProgress(0, 0);
-        setStatus("❌ 转换失败：" + e.message, "error");
+        setStatus("❌ 导入失败：" + e.message, "error");
         console.error("[PDF2PSD]", e);
     } finally {
         isConverting = false;
         document.getElementById("convertBtn").disabled  = false;
-        document.getElementById("convertBtn").textContent = "开始转换";
+        document.getElementById("convertBtn").textContent = "开始导入";
     }
-}
-
-// ── 动态加载 PDF.js ───────────────────────────────────────────────────────────
-let _pdfjsCache = null;
-
-async function loadPDFJS() {
-    if (_pdfjsCache) return _pdfjsCache;
-
-    return new Promise((resolve, reject) => {
-        // 使用本地打包的 PDF.js（lib/pdf.min.js）
-        const script = document.createElement("script");
-        script.src = "lib/pdf.min.js";
-        script.onload = () => {
-            if (typeof pdfjsLib === "undefined") {
-                reject(new Error("PDF.js 加载失败，请检查 lib/pdf.min.js 是否存在"));
-                return;
-            }
-            // 设置 worker 路径
-            pdfjsLib.GlobalWorkerOptions.workerSrc = "lib/pdf.worker.min.js";
-            _pdfjsCache = pdfjsLib;
-            resolve(pdfjsLib);
-        };
-        script.onerror = () => reject(new Error("无法加载 PDF.js，请检查插件文件完整性"));
-        document.head.appendChild(script);
-    });
 }
 
 // ── 暴露全局函数（HTML onclick 使用）────────────────────────────────────────
