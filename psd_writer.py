@@ -40,11 +40,13 @@ def _packbits_encode(data: bytes) -> bytes:
         count = sum(1 for _ in g)
         if count >= 3:
             flush_literals()
-            while count > 0:
+            while count >= 3:
                 run = min(count, 128)
                 res.append(257 - run)
                 res.append(k)
                 count -= run
+            if count > 0:
+                literals.extend(bytes([k]) * count)
         else:
             literals.extend(bytes([k]) * count)
             
