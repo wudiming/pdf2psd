@@ -10,8 +10,9 @@
 
   <ExecutionEnvironment>
     <HostList>
-      <!-- PS CC 2020 (v21) through PS 2026 (v27) -->
-      <Host Name="PHSP" Version="21.0"/>
+      <!-- PS CC 2020 (v21) through future versions -->
+      <Host Name="PHSP" Version="[21.0,99.9]"/>
+      <Host Name="PHXS" Version="[21.0,99.9]"/>
     </HostList>
     <LocaleList>
       <Locale Code="All"/>
