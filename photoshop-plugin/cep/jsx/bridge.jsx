@@ -7,8 +7,9 @@
  */
 
 /**
- * 自动探测 PDF 文件的总页数
- * 原理：尝试逐页打开直到失败，或通过 PDF 字典中的 /Count 值读取
+ * 快速读取 PDF 文件的总页数
+ * 原理：直接解析 PDF 二进制文件的 /Count 字段，完全不需要用 PS 打开文档。
+ * 解析失败时才回退到传统的二分法（打开 PS 文档）。
  * @param {string} pdfPathEncoded  URI 编码的文件路径
  * @returns {string} JSON 字符串
  */
@@ -20,11 +21,58 @@ function getPageCount(pdfPathEncoded) {
             return '{ "ok": false, "error": "文件不存在" }';
         }
 
+        // ── 方法一：直接读取 PDF 二进制，匹配 /Count 字段 ──────────────────
+        // PDF 规范：页面树的根节点 /Type /Pages 下有 /Count N 记录总页数
+        // 读取文件尾部即可，目录表（xref）和根字典一般在文件末尾
+        try {
+            pdfFile.open("r");
+            pdfFile.encoding = "BINARY";
+            
+            // 读取文件尾部 32KB，足够覆盖大多数 PDF 的结构
+            var fileLen  = pdfFile.length;
+            var tailSize = Math.min(fileLen, 32768);
+            pdfFile.seek(fileLen - tailSize, 0); // 0 = SEEK_SET
+            var tail = pdfFile.read(tailSize);
+            pdfFile.close();
+            
+            // 找出所有 /Count 后跟数字的匹配，取其中最大的一个
+            // 这是因为 PDF 内部各子节点也有 /Count，最大值才是总页数
+            var maxCount = 0;
+            var re = /\/Count\s+(\d+)/g;
+            var m;
+            while ((m = re.exec(tail)) !== null) {
+                var n = parseInt(m[1], 10);
+                if (n > maxCount) maxCount = n;
+            }
+
+            if (maxCount > 0) {
+                return '{ "ok": true, "count": ' + maxCount + ', "method": "binary" }';
+            }
+            // 如果尾部没找到，尝试头部（少见的 PDF 结构）
+            pdfFile.open("r");
+            pdfFile.encoding = "BINARY";
+            var headSize = Math.min(fileLen, 32768);
+            pdfFile.seek(0, 0);
+            var head = pdfFile.read(headSize);
+            pdfFile.close();
+            
+            while ((m = re.exec(head)) !== null) {
+                var n2 = parseInt(m[1], 10);
+                if (n2 > maxCount) maxCount = n2;
+            }
+            if (maxCount > 0) {
+                return '{ "ok": true, "count": ' + maxCount + ', "method": "binary_head" }';
+            }
+        } catch(readErr) {
+            // 文件读取失败，忽略，继续用 PS 打开方式
+        }
+
+        // ── 方法二：回退 - 用 PS 打开文档（指数+二分法）───────────────────
         var opts = new PDFOpenOptions();
         opts.suppressWarnings = true;
         opts.bitsPerChannel   = BitsPerChannelType.EIGHT;
         opts.colorMode        = OpenDocumentMode.RGB;
-        opts.resolution       = 72;  // 最低分辨率加速探测
+        opts.resolution       = 72;
         opts.usePageNumber    = true;
 
         var originalDisplayDialogs = app.displayDialogs;
@@ -41,42 +89,30 @@ function getPageCount(pdfPathEncoded) {
             }
         }
 
-        // 1. 检查第1页
         if (!canOpenPage(1)) {
             app.displayDialogs = originalDisplayDialogs;
             return '{ "ok": false, "error": "无法作为 PDF 打开此文件" }';
         }
 
-        // 2. 指数倍增寻找上限 (Exponential search)
         var lo = 1;
         var hi = 2;
         while (canOpenPage(hi)) {
             lo = hi;
             hi = hi * 2;
-            if (hi > 2000) { // 保护上限
-                hi = 2000;
-                break;
-            }
+            if (hi > 2000) { hi = 2000; break; }
         }
 
-        // 3. 二分法精准定位 (Binary search)
-        // 已知 lo 是成功的，hi 是失败的（或者达到极限）
         var ans = lo;
         var low = lo + 1;
         var high = hi - 1;
-
         while (low <= high) {
             var mid = Math.floor((low + high) / 2);
-            if (canOpenPage(mid)) {
-                ans = mid;    // mid 存在，说明总页数 >= mid
-                low = mid + 1;
-            } else {
-                high = mid - 1;
-            }
+            if (canOpenPage(mid)) { ans = mid; low = mid + 1; }
+            else { high = mid - 1; }
         }
 
         app.displayDialogs = originalDisplayDialogs;
-        return '{ "ok": true, "count": ' + ans + ' }';
+        return '{ "ok": true, "count": ' + ans + ', "method": "ps_open" }';
 
     } catch (e) {
         var errStr = String(e.message || e).replace(/"/g, '\\"');
@@ -96,6 +132,7 @@ function selectPDFFile() {
 
 /**
  * 主转换函数：逐页将 PDF 导入为 PS 图层
+ * 修复：导入结束后执行「显示全部」(Reveal All)，防止大页面溢出画布
  * @param {string} pdfPathEncoded  URI 编码的 PDF 路径
  * @param {number} totalPages      总页数
  * @param {number} dpi             渲染 DPI
@@ -178,6 +215,14 @@ function importPDFAsLayers(pdfPathEncoded, totalPages, dpi) {
                 }
             } catch (e) { /* 忽略 */ }
         }
+
+        // ── 关键修复：执行「图像 → 显示全部」(Reveal All) ──────────────────
+        // 防止 A2 等超大页面的图层内容超出以 A3 为基准创建的画布，导致显示不全
+        try {
+            app.activeDocument = masterDoc;
+            var idrevealAll = stringIDToTypeID("revealAll");
+            executeAction(idrevealAll, undefined, DialogModes.NO);
+        } catch (revealErr) { /* 旧版 PS 可能不支持，忽略 */ }
 
         var safeDocName = docName.replace(/"/g, '\\"');
         return '{ "ok": true, "imported": ' + succeeded + ', "docName": "' + safeDocName + '" }';
