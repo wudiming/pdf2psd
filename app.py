@@ -136,7 +136,7 @@ class PDF2PSDApp(ctk.CTk):
         super().__init__()
 
         self.title("PDF → PSD 转换工具")
-        self.geometry("560x720")
+        self.geometry("560x800")
         self.resizable(False, False)
         self.configure(fg_color=BG_MAIN)
 
@@ -144,6 +144,7 @@ class PDF2PSDApp(ctk.CTk):
         self._pdf_path: str | None = None
         self._output_dir: str | None = None
         self._converting = False
+        self._detected_pages: int = 0
 
         self._build_ui()
 
@@ -184,6 +185,51 @@ class PDF2PSDApp(ctk.CTk):
             height=150,
         )
         self._drop_zone.pack(fill="x", padx=24, pady=(0, 12))
+
+        # ─ Page Count ─────────────────────────────────────────────────
+        self._page_card = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=12)
+        self._page_card.pack(fill="x", padx=24, pady=(0, 12))
+
+        page_row = ctk.CTkFrame(self._page_card, fg_color="transparent")
+        page_row.pack(fill="x", padx=16, pady=(12, 4))
+
+        ctk.CTkLabel(
+            page_row,
+            text="📄 总页数：",
+            font=ctk.CTkFont(family="Microsoft YaHei", size=13, weight="bold"),
+        ).pack(side="left")
+
+        self._page_entry = ctk.CTkEntry(
+            page_row,
+            width=70,
+            height=30,
+            font=ctk.CTkFont(size=13),
+            justify="center",
+            placeholder_text="1",
+        )
+        self._page_entry.pack(side="left", padx=(10, 0))
+
+        self._detect_btn = ctk.CTkButton(
+            page_row,
+            text="🔍 重新识别",
+            width=100,
+            height=30,
+            corner_radius=8,
+            fg_color="#2A3450",
+            hover_color="#3A4560",
+            font=ctk.CTkFont(family="Microsoft YaHei", size=11),
+            command=self._detect_pages,
+        )
+        self._detect_btn.pack(side="right")
+
+        self._detect_status = ctk.CTkLabel(
+            self._page_card,
+            text="",
+            font=ctk.CTkFont(family="Microsoft YaHei", size=11),
+            text_color=TEXT_MUTED,
+            anchor="w",
+        )
+        self._detect_status.pack(fill="x", padx=16, pady=(0, 12), anchor="w")
 
         # ─ Output Directory ───────────────────────────────────────────────────
         out_card = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=12)
@@ -256,23 +302,24 @@ class PDF2PSDApp(ctk.CTk):
         dpi_hints.pack(fill="x", padx=16, pady=(0, 12))
 
         presets = [
-            ("屏幕  72", 72),
-            ("标准  150", 150),
-            ("印刷  300", 300),
+            ("72\n屏幕", 72),
+            ("150\n标准", 150),
+            ("200\n高清", 200),
+            ("300\n印刷", 300),
         ]
         for label, val in presets:
             btn = ctk.CTkButton(
                 dpi_hints,
                 text=label,
-                width=90,
-                height=24,
+                width=80,
+                height=42,
                 corner_radius=6,
                 fg_color="#2A3450",
                 hover_color="#3A4560",
                 font=ctk.CTkFont(size=11),
                 command=lambda v=val: self._set_dpi(v),
             )
-            btn.pack(side="left", padx=(0, 6))
+            btn.pack(side="left", padx=(0, 6), expand=True, fill="x")
 
         # ─ Status ─────────────────────────────────────────────────────────────
         self._status = StatusBar(self)
@@ -310,13 +357,49 @@ class PDF2PSDApp(ctk.CTk):
         try:
             info = get_pdf_info(path)
             pages = info['page_count']
+            self._detected_pages = pages
             info_text = f"{pages} 页  ·  {size_mb:.1f} MB"
+            # 自动填入页数
+            self._page_entry.delete(0, "end")
+            self._page_entry.insert(0, str(pages))
+            self._detect_status.configure(
+                text=f"✅ 自动识别到 {pages} 页", text_color=SUCCESS
+            )
         except Exception:
             info_text = f"{size_mb:.1f} MB"
+            self._detect_status.configure(text="⚠ 无法自动识别，请手动输入页数", text_color=ERROR_COL)
 
         self._drop_zone.set_file(filename, info_text)
-        self._status.update("文件已选择，点击「开始转换」", 0)
+        self._status.update("文件已选择，点击『开始转换』", 0)
         self._btn.configure(state="normal")
+
+    def _detect_pages(self):
+        """Re-detect page count for current PDF."""
+        if not self._pdf_path:
+            return
+        self._detect_btn.configure(state="disabled", text="识别中…")
+        self._detect_status.configure(text="正在识别页数…", text_color=TEXT_MUTED)
+
+        def _run():
+            try:
+                info = get_pdf_info(self._pdf_path)
+                pages = info['page_count']
+                def _update():
+                    self._detected_pages = pages
+                    self._page_entry.delete(0, "end")
+                    self._page_entry.insert(0, str(pages))
+                    self._detect_status.configure(
+                        text=f"✅ 识别到 {pages} 页", text_color=SUCCESS
+                    )
+                    self._detect_btn.configure(state="normal", text="🔍 重新识别")
+                self.after(0, _update)
+            except Exception as e:
+                def _err():
+                    self._detect_status.configure(text=f"⚠ 识别失败：{e}", text_color=ERROR_COL)
+                    self._detect_btn.configure(state="normal", text="🔍 重新识别")
+                self.after(0, _err)
+
+        threading.Thread(target=_run, daemon=True).start()
 
     def _select_output_dir(self):
         path = filedialog.askdirectory(title="选择输出目录")
@@ -348,6 +431,14 @@ class PDF2PSDApp(ctk.CTk):
         self._status.update("准备中…", 0)
 
         dpi = int(self._dpi_slider.get())
+        # Use manually set page count (allows partial conversion)
+        try:
+            total_pages = int(self._page_entry.get())
+            if total_pages < 1:
+                raise ValueError
+        except (ValueError, AttributeError):
+            total_pages = None  # converter will use all pages
+
         stem = Path(self._pdf_path).stem
         out_dir = self._output_dir or str(Path(self._pdf_path).parent)
         output_path = os.path.join(out_dir, f"{stem}.psd")
@@ -363,6 +454,7 @@ class PDF2PSDApp(ctk.CTk):
                     output_path,
                     dpi=dpi,
                     compression=1,  # RLE
+                    total_pages=total_pages,
                     progress_callback=_cb,
                 )
                 self.after(0, self._on_done, output_path)

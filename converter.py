@@ -32,6 +32,7 @@ def convert_pdf_to_psd(
     output_path: str,
     dpi: int = 150,
     compression: int = 1,
+    total_pages: int | None = None,
     progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ) -> None:
     """
@@ -55,6 +56,10 @@ def convert_pdf_to_psd(
 
     if num_pages == 0:
         raise ValueError("PDF 文件没有页面")
+
+    # Clamp to user-specified page count if provided
+    if total_pages is not None and 0 < total_pages < num_pages:
+        num_pages = total_pages
 
     scale = dpi / 72.0
     matrix = fitz.Matrix(scale, scale)
