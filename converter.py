@@ -31,7 +31,7 @@ def convert_pdf_to_psd(
     pdf_path: str,
     output_path: str,
     dpi: int = 150,
-    compression: int = 0,
+    compression: int = 1,
     progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ) -> None:
     """
