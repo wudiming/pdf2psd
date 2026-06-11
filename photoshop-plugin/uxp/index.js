@@ -83,6 +83,25 @@ async function selectFile() {
     } catch (e) {
         setStatus("选择文件失败：" + e.message, "error");
     }
+
+    // 自动探测页数 (需要 executeAsModal)
+    try {
+        setStatus("正在自动识别页数…");
+        document.getElementById("pageInput").value = "识别中...";
+        await core.executeAsModal(async () => {
+            const count = await getPdfPageCount(selectedFileEntry);
+            if (count > 0) {
+                document.getElementById("pageInput").value = count;
+                setStatus(`已选择文件，共识别出 ${count} 页`);
+            } else {
+                document.getElementById("pageInput").value = "1";
+                setStatus("无法自动识别页数，请手动输入", "error");
+            }
+        }, { commandName: "探测 PDF 页数" });
+    } catch (e) {
+        document.getElementById("pageInput").value = "1";
+        setStatus("页数探测出错：" + e.message, "error");
+    }
 }
 
 // ── 图层命名 ──────────────────────────────────────────────────────────────────
@@ -162,15 +181,13 @@ async function startConvert() {
     try {
         await core.executeAsModal(async (executionContext) => {
             
-            setProgress(0, 1, "正在探测 PDF 页数…");
-            setStatus("正在探测 PDF 页数…");
             
-            const totalPages = await getPdfPageCount(selectedFileEntry);
-            if (totalPages === 0) {
-                throw new Error("无法打开该 PDF 文件");
+            const totalPages = parseInt(document.getElementById("pageInput").value, 10);
+            if (isNaN(totalPages) || totalPages < 1) {
+                throw new Error("请输入有效的页数（大于0）");
             }
             
-            setStatus(`共识别出 ${totalPages} 页，开始导入…`);
+            setStatus(`开始导入 ${totalPages} 页…`);
             setProgress(0, totalPages, `准备导入 ${totalPages} 页…`);
 
             const docName = selectedFileEntry.name.replace(/\.pdf$/i, "");
