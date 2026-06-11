@@ -282,11 +282,10 @@
 
 <!-- Page Count -->
 <div class="card" id="pageCard" style="display:none">
-  <div class="page-row" style="flex-wrap: wrap; margin-top: 0;">
+  <div class="page-row" style="margin-top: 0;">
     <label>📄 总页数：</label>
     <input class="page-input" type="number" id="pageInput" value="1" min="1" max="9999">
-    <div style="flex-basis: 100%; height: 4px;"></div>
-    <button class="detect-btn" id="detectBtn" onclick="detectPages()" style="width:100%; padding: 8px; border-radius: 6px;">🔍 自动识别</button>
+    <button class="detect-btn" id="detectBtn" onclick="detectPages()" style="flex: none; width: auto; margin-left: auto;">🔍 重新识别</button>
   </div>
   <div class="detect-status" id="detectStatus"></div>
 </div>
@@ -360,7 +359,8 @@ function selectFile() {
   cs.evalScript('selectPDFFile()', function(result) {
     if (!result || result === '' || result === 'EvalScript error.') return;
     selectedPath = result;
-    var fileName = decodeURIComponent(result.split('/').pop().split('\\').pop());
+    var decodedResult = decodeURIComponent(result);
+    var fileName = decodedResult.split('/').pop().split('\\').pop();
 
     var dz = document.getElementById('dropZone');
     dz.classList.add('selected');
