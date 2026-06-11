@@ -1,0 +1,211 @@
+/* ── Reset & Variables ──────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #1a1d2e;
+  --bg-card:  #212438;
+  --accent:   #4a9eff;
+  --accent-h: #3a8eef;
+  --text:     #e8eaf6;
+  --muted:    #7986a8;
+  --success:  #4caf88;
+  --error:    #ff5c72;
+  --radius:   10px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", sans-serif;
+  font-size: 12px;
+  padding: 14px;
+  line-height: 1.5;
+  min-width: 260px;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+header {
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.logo       { font-size: 20px; font-weight: 700; color: var(--accent); }
+.arrow      { font-size: 20px; color: var(--muted); }
+.logo-right { font-size: 20px; font-weight: 700; }
+
+.subtitle {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* ── Drop Zone ───────────────────────────────────────────────────────────── */
+.drop-zone {
+  border: 2px dashed #3a4560;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  text-align: center;
+  padding: 18px 12px;
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+  margin-bottom: 12px;
+}
+.drop-zone:hover {
+  border-color: var(--accent);
+  background: #252a40;
+}
+.drop-zone.has-file {
+  border-color: var(--accent);
+  border-style: solid;
+}
+
+.drop-icon  { font-size: 28px; margin-bottom: 6px; }
+.drop-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.drop-sub   { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+/* ── Settings Card ───────────────────────────────────────────────────────── */
+.settings-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.setting-row label {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.setting-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.value-label {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 12px;
+  min-width: 30px;
+  text-align: right;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 110px;
+  height: 4px;
+  border-radius: 2px;
+  background: #3a4560;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.dpi-presets {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.dpi-presets button {
+  flex: 1;
+  background: #2a3450;
+  border: none;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  padding: 4px 0;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.dpi-presets button:hover,
+.dpi-presets button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+select {
+  background: #2a3450;
+  border: 1px solid #3a4560;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 11px;
+  padding: 3px 6px;
+  cursor: pointer;
+  outline: none;
+}
+
+/* ── Progress ────────────────────────────────────────────────────────────── */
+.progress-card {
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+
+.progress-label {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.progress-track {
+  background: #2a3450;
+  border-radius: 3px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  background: var(--accent);
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  transition: width .3s ease;
+}
+
+/* ── Status ──────────────────────────────────────────────────────────────── */
+.status {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  margin-bottom: 10px;
+  min-height: 16px;
+}
+.status.success { color: var(--success); }
+.status.error   { color: var(--error);   }
+
+/* ── Button ──────────────────────────────────────────────────────────────── */
+.btn-primary {
+  width: 100%;
+  padding: 11px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .2s, opacity .2s;
+  font-family: inherit;
+}
+.btn-primary:hover:not(:disabled) { background: var(--accent-h); }
+.btn-primary:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
