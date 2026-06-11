@@ -3,10 +3,13 @@ Custom PSD (Photoshop Document) binary writer.
 Creates multi-layer RGBA PSD files from PIL images.
 Implements Adobe PSD format spec (version 1).
 
-Compression modes
------------------
-0 = RAW  : No compression. Largest files.
-1 = RLE  : PackBits. Numpy fully-vectorized. Compatible with all PS versions.
+Compression
+-----------
+0 = RAW  : No compression. Fastest write. Largest files.
+1 = RLE  : Adaptive PackBits. Samples 16 rows per plane to measure
+           compressibility; if savings < 5% automatically falls back to RAW
+           for that plane. This gives near-RAW speed for photo/complex images
+           while still producing small files for typical text+white PDFs.
 """
 
 import struct
@@ -16,118 +19,92 @@ from PIL import Image
 from typing import List, Optional, Tuple
 
 
-# ── Compression helpers ───────────────────────────────────────────────────────
+# ── PackBits encoder ──────────────────────────────────────────────────────────
 
-def _packbits_encode_plane(plane_bytes: bytes, width: int, height: int) -> Tuple[bytes, bytes]:
-    """
-    Fully vectorized PackBits encoder using numpy.
-    Key insight: build header bytes and value bytes as numpy arrays,
-    then interleave them — zero Python pixel loops.
-
-    Strategy per row:
-      1. np.diff → find run boundaries (C-speed)
-      2. Classify segments as RLE (len>=3) or Literal
-      3. For RLE segments: emit (257-len, value) pairs via numpy
-      4. For Literal segments: concatenate the raw bytes with header
-      5. Interleave all output using np.concatenate
-
-    Returns (counts_block, data_block)
-    """
-    arr = np.frombuffer(plane_bytes, dtype=np.uint8).reshape(height, width)
-
-    row_byte_counts = []
-    row_encoded     = []
-
-    for row in arr:
-        encoded = _encode_row_vectorized(row)
-        row_byte_counts.append(len(encoded))
-        row_encoded.append(encoded)
-
-    counts_block = np.array(row_byte_counts, dtype='>u2').tobytes()
-    data_block   = b''.join(row_encoded)
-    return counts_block, data_block
-
-
-def _encode_row_vectorized(row: np.ndarray) -> bytes:
-    """
-    Encode one row with numpy vector ops. Handles both RLE runs and literals
-    without Python per-pixel loops.
-    """
+def _packbits_row(row: np.ndarray) -> bytes:
+    """Encode one row with PackBits RLE."""
     n = len(row)
     if n == 0:
         return b''
 
-    # ── 1. Find segment boundaries ──────────────────────────────────────────
-    change = np.empty(n, dtype=bool)
-    change[0] = True
-    change[1:] = row[1:] != row[:-1]
-
-    seg_starts = np.flatnonzero(change)
-    seg_ends   = np.empty_like(seg_starts)
+    # Find run-boundary positions using numpy (C-speed)
+    ne = row[1:] != row[:-1]
+    seg_starts = np.concatenate(([0], np.flatnonzero(ne) + 1))
+    seg_ends   = np.empty(len(seg_starts), dtype=np.intp)
     seg_ends[:-1] = seg_starts[1:]
     seg_ends[-1]  = n
-    seg_lens  = seg_ends - seg_starts          # length of each run
-    seg_vals  = row[seg_starts]                # value of each run
+    seg_lens = seg_ends - seg_starts
+    seg_vals = row[seg_starts]
 
-    # ── 2. Classify: RLE (len >= 3) vs Literal (len < 3) ────────────────────
-    is_rle = seg_lens >= 3
+    out = bytearray()
+    lit  = bytearray()
 
-    # ── 3. Build output using numpy where possible ───────────────────────────
-    # We accumulate chunks as numpy arrays and join at the end.
-    out_chunks = []
+    def flush():
+        while lit:
+            chunk = lit[:128]
+            out.append(len(chunk) - 1)
+            out.extend(chunk)
+            del lit[:128]
 
-    # Process consecutive literal segments as one literal block (max 128 bytes)
-    # This avoids per-segment Python overhead for "noisy" images.
-    # Use a state machine: collect literals, flush when hitting RLE or limit.
-
-    lit_buf   = []        # list of (val, count) for literal segments
-    lit_total = 0
-
-    def flush_literals():
-        nonlocal lit_total
-        if not lit_buf:
-            return
-        # Build raw bytes for all literals
-        raw = np.empty(lit_total, dtype=np.uint8)
-        pos = 0
-        for v, cnt in lit_buf:
-            raw[pos:pos+cnt] = v
-            pos += cnt
-        # Emit in chunks of 128
-        idx = 0
-        while idx < lit_total:
-            chunk = raw[idx: idx + 128]
-            header = np.array([len(chunk) - 1], dtype=np.uint8)
-            out_chunks.append(header.tobytes())
-            out_chunks.append(chunk.tobytes())
-            idx += 128
-        lit_buf.clear()
-        lit_total = 0
-
-    for i in range(len(seg_starts)):
-        s   = int(seg_starts[i])
-        ln  = int(seg_lens[i])
-        val = int(seg_vals[i])
-
-        if is_rle[i]:
-            flush_literals()
-            # Emit RLE packets (max 128 bytes each)
-            rem = ln
-            while rem >= 3:
-                run = min(rem, 128)
-                out_chunks.append(bytes([257 - run, val]))
-                rem -= run
-            if rem > 0:
-                lit_buf.append((val, rem))
-                lit_total += rem
+    for ln, val in zip(seg_lens, seg_vals):
+        ln = int(ln); val = int(val)
+        if ln >= 3:
+            flush()
+            while ln >= 3:
+                run = min(ln, 128)
+                out.append(257 - run)
+                out.append(val)
+                ln -= run
+            if ln:
+                lit.extend([val] * ln)
         else:
-            lit_buf.append((val, ln))
-            lit_total += ln
-            if lit_total >= 128:
-                flush_literals()
+            lit.extend([val] * ln)
+            if len(lit) >= 128:
+                flush()
 
-    flush_literals()
-    return b''.join(out_chunks)
+    flush()
+    return bytes(out)
+
+
+def _compress_plane_adaptive(
+    plane_bytes: bytes, width: int, height: int
+) -> Tuple[int, bytes]:
+    """
+    Compress one channel plane with adaptive PackBits.
+
+    Samples 16 evenly-spaced rows first.
+    If estimated RLE size >= 95% of raw → returns RAW block (header 0).
+    Otherwise → returns full RLE block (header 1).
+
+    Returns (compression_type_used, block_bytes).
+    """
+    raw_size = len(plane_bytes)
+    arr = np.frombuffer(plane_bytes, dtype=np.uint8).reshape(height, width)
+
+    # ── Probe: sample 16 rows ─────────────────────────────────────────────────
+    indices = np.linspace(0, height - 1, min(16, height), dtype=int)
+    sample_raw = sample_enc = 0
+    for idx in indices:
+        enc = _packbits_row(arr[idx])
+        sample_raw += width
+        sample_enc += len(enc)
+
+    if sample_enc >= sample_raw * 0.95:
+        # RLE won't help for this plane — use RAW (instant write)
+        return 0, struct.pack('>H', 0) + plane_bytes
+
+    # ── Full RLE encode ───────────────────────────────────────────────────────
+    byte_counts = []
+    rows_enc    = []
+    for row in arr:
+        enc = _packbits_row(row)
+        byte_counts.append(len(enc))
+        rows_enc.append(enc)
+
+    counts_block = np.array(byte_counts, dtype='>u2').tobytes()
+    data_block   = b''.join(rows_enc)
+    block = struct.pack('>H', 1) + counts_block + data_block
+    return 1, block
 
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
@@ -138,9 +115,8 @@ def _pad_to_even(data: bytes) -> bytes:
 
 def _pascal_string(name: str, align: int = 4) -> bytes:
     encoded = name.encode('ascii', errors='replace')[:255]
-    result = bytes([len(encoded)]) + encoded
-    pad = (-len(result)) % align
-    return result + b'\x00' * pad
+    result  = bytes([len(encoded)]) + encoded
+    return result + b'\x00' * ((-len(result)) % align)
 
 
 # ── Main writer ───────────────────────────────────────────────────────────────
@@ -160,8 +136,7 @@ def write_psd(
         images      : PIL Images; any mode accepted, normalised to RGBA.
         layer_names : Optional layer name list.
         dpi         : Document resolution (pixels/inch).
-        compression : 0=RAW (fastest write, large files)
-                      1=RLE (default, numpy-vectorized PackBits, small files)
+        compression : 0=RAW always, 1=Adaptive RLE (auto-selects per plane).
     """
     if not images:
         raise ValueError("No images provided")
@@ -176,7 +151,9 @@ def write_psd(
     while len(layer_names) < len(rgba):
         layer_names.append(f"Page {len(layer_names) + 1}")
 
-    channel_ids = [-1, 0, 1, 2]   # alpha, R, G, B
+    channel_ids = [-1, 0, 1, 2]   # alpha, R, G, B — PSD channel order
+
+    # ── Pre-compress all layer channels ───────────────────────────────────────
     all_ch_records = []
     all_ch_blocks  = []
 
@@ -191,39 +168,37 @@ def write_psd(
         for ch_id, plane in zip(channel_ids, planes):
             raw = plane.tobytes()
             if compression == 0:
-                block    = struct.pack('>H', 0) + raw
-                data_len = len(block)
+                block = struct.pack('>H', 0) + raw
             else:
-                cnt_blk, dat_blk = _packbits_encode_plane(raw, canvas_w, canvas_h)
-                block    = struct.pack('>H', 1) + cnt_blk + dat_blk
-                data_len = len(block)
+                _, block = _compress_plane_adaptive(raw, canvas_w, canvas_h)
             ch_blocks.append(block)
-            ch_records.append((ch_id, data_len))
+            ch_records.append((ch_id, len(block)))
 
         all_ch_records.append(ch_records)
         all_ch_blocks.append(ch_blocks)
 
+    # ── Write file ────────────────────────────────────────────────────────────
     with open(output_path, 'wb') as f:
 
         # Section 1: File Header
         f.write(b'8BPS')
         f.write(struct.pack('>H', 1))
         f.write(b'\x00' * 6)
-        f.write(struct.pack('>H', 3))
+        f.write(struct.pack('>H', 3))        # merged composite has 3 channels
         f.write(struct.pack('>I', canvas_h))
         f.write(struct.pack('>I', canvas_w))
-        f.write(struct.pack('>H', 8))
-        f.write(struct.pack('>H', 3))
+        f.write(struct.pack('>H', 8))        # 8 bit depth
+        f.write(struct.pack('>H', 3))        # RGB color mode
 
         # Section 2: Color Mode Data
         f.write(struct.pack('>I', 0))
 
-        # Section 3: Image Resources (resolution)
-        res_buf  = io.BytesIO()
-        h_res = v_res = dpi << 16
+        # Section 3: Image Resources (resolution info)
+        res_buf = io.BytesIO()
+        hv_res  = dpi << 16
         res_data = (
-            struct.pack('>I', h_res) + struct.pack('>H', 1) + struct.pack('>H', 1) +
-            struct.pack('>I', v_res) + struct.pack('>H', 1) + struct.pack('>H', 1)
+            struct.pack('>I', hv_res) + struct.pack('>HH', 1, 1) +
+            struct.pack('>I', hv_res) + struct.pack('>HH', 1, 1)
         )
         res_buf.write(b'8BIM')
         res_buf.write(struct.pack('>H', 0x03ED))
@@ -237,7 +212,7 @@ def write_psd(
         # Section 4: Layer & Mask Information
         lm_buf = io.BytesIO()
         li_buf = io.BytesIO()
-        li_buf.write(struct.pack('>h', len(rgba)))
+        li_buf.write(struct.pack('>h', len(rgba)))  # signed layer count
 
         for ch_records, name in zip(all_ch_records, layer_names):
             li_buf.write(struct.pack('>iiii', 0, 0, canvas_h, canvas_w))
@@ -247,9 +222,10 @@ def write_psd(
             li_buf.write(b'8BIM')
             li_buf.write(b'norm')
             li_buf.write(struct.pack('>BBBB', 255, 0, 0, 0))
+
             extra = io.BytesIO()
-            extra.write(struct.pack('>I', 0))
-            extra.write(struct.pack('>I', 0))
+            extra.write(struct.pack('>I', 0))    # layer mask: empty
+            extra.write(struct.pack('>I', 0))    # blending ranges: empty
             extra.write(_pascal_string(name, 4))
             extra_bytes = extra.getvalue()
             li_buf.write(struct.pack('>I', len(extra_bytes)))
@@ -262,33 +238,19 @@ def write_psd(
         li_bytes = _pad_to_even(li_buf.getvalue())
         lm_buf.write(struct.pack('>I', len(li_bytes)))
         lm_buf.write(li_bytes)
-        lm_buf.write(struct.pack('>I', 0))
+        lm_buf.write(struct.pack('>I', 0))   # global mask: empty
 
         lm_bytes = lm_buf.getvalue()
         f.write(struct.pack('>I', len(lm_bytes)))
         f.write(lm_bytes)
 
-        # Section 5: Flattened Composite
+        # Section 5: Flattened Composite (RAW — it's just PS's preview thumbnail)
         merged = Image.new('RGBA', (canvas_w, canvas_h), (255, 255, 255, 255))
         for img in reversed(rgba):
             tmp = Image.new('RGBA', (canvas_w, canvas_h), (0, 0, 0, 0))
             tmp.paste(img, (0, 0))
             merged = Image.alpha_composite(merged, tmp)
-
         merged_rgb = merged.convert('RGB')
-
-        if compression == 0:
-            f.write(struct.pack('>H', 0))
-            for plane in merged_rgb.split():
-                f.write(plane.tobytes())
-        else:
-            f.write(struct.pack('>H', 1))
-            channels_data = []
-            for plane in merged_rgb.split():
-                cnt_blk, dat_blk = _packbits_encode_plane(
-                    plane.tobytes(), canvas_w, canvas_h)
-                channels_data.append((cnt_blk, dat_blk))
-            for cnt_blk, _ in channels_data:
-                f.write(cnt_blk)
-            for _, dat_blk in channels_data:
-                f.write(dat_blk)
+        f.write(struct.pack('>H', 0))        # RAW compression for composite
+        for plane in merged_rgb.split():
+            f.write(plane.tobytes())
