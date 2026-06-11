@@ -82,12 +82,14 @@ def main():
     print()
 
     # PyInstaller bundles files to sys._MEIPASS
-    if not getattr(sys, 'frozen', False):
-        print("❌ 错误：请使用打包后的 .exe 或 .app 运行此程序。")
-        input("\n按回车键退出...")
-        return
+    if getattr(sys, 'frozen', False):
+        cep_src = Path(sys._MEIPASS) / "cep_data"
+    else:
+        # 当作为普通 py 脚本运行时，查找同级的 cep 目录，或源码结构的 photoshop-plugin/cep
+        cep_src = Path(__file__).parent / "cep"
+        if not cep_src.exists():
+            cep_src = Path(__file__).parent / "photoshop-plugin" / "cep"
 
-    cep_src = Path(sys._MEIPASS) / "cep_data"
     if not cep_src.exists():
         print(f"❌ 错误：找不到内置插件数据目录 {cep_src}")
         input("\n按回车键退出...")

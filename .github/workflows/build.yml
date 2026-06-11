@@ -254,9 +254,12 @@ jobs:
 
       - name: Package CEP plugin as .zip
         run: |
-          cd photoshop-plugin/cep
-          zip -r ../../PDF2PSD-CEP-Plugin.zip .
-          cd ../..
+          mkdir temp_zip
+          cp -r photoshop-plugin/cep temp_zip/
+          cp install_plugin.py temp_zip/
+          cd temp_zip
+          zip -r ../PDF2PSD-CEP-Plugin.zip .
+          cd ..
 
       - name: Copy JSX script
         run: cp photoshop-plugin/jsx/pdf_to_layers.jsx PDF2PSD-jsx-script.jsx
