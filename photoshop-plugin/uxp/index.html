@@ -15,7 +15,7 @@
   </header>
 
   <!-- ── File Drop Zone ─────────────────────────────────────── -->
-  <div id="dropZone" class="drop-zone" onclick="selectFile()">
+  <div id="dropZone" class="drop-zone">
     <div class="drop-icon" id="dropIcon">📂</div>
     <div class="drop-title" id="dropTitle">点击选择 PDF 文件</div>
     <div class="drop-sub"  id="dropSub">支持多页 PDF</div>
@@ -35,14 +35,13 @@
       <label>渲染 DPI</label>
       <div class="setting-right">
         <span class="value-label" id="dpiLabel">150</span>
-        <input type="range" id="dpiSlider" min="72" max="300" step="1" value="150"
-               oninput="updateDpi(this.value)" />
+        <input type="range" id="dpiSlider" min="72" max="300" step="1" value="150" />
       </div>
     </div>
     <div class="dpi-presets">
-      <button onclick="setDpi(72)">屏幕 72</button>
-      <button onclick="setDpi(150)" class="active">标准 150</button>
-      <button onclick="setDpi(300)">印刷 300</button>
+      <button data-dpi="72">屏幕 72</button>
+      <button data-dpi="150" class="active">标准 150</button>
+      <button data-dpi="300">印刷 300</button>
     </div>
 
     <div class="setting-row" style="margin-top:10px">
@@ -68,7 +67,7 @@
   <div class="status" id="statusMsg">请先选择 PDF 文件</div>
 
   <!-- ── Action Button ──────────────────────────────────────── -->
-  <button id="convertBtn" class="btn-primary" onclick="startConvert()" disabled>
+  <button id="convertBtn" class="btn-primary" disabled>
     开始转换
   </button>
 

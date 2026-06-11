@@ -280,8 +280,20 @@ async function startConvert() {
     }
 }
 
-// ── 暴露全局函数（HTML onclick 使用）────────────────────────────────────────
-window.selectFile  = selectFile;
-window.startConvert = startConvert;
-window.updateDpi   = updateDpi;
-window.setDpi      = setDpi;
+// ── 事件绑定 (CSP 兼容) ────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("dropZone").addEventListener("click", selectFile);
+    document.getElementById("convertBtn").addEventListener("click", startConvert);
+    
+    const dpiSlider = document.getElementById("dpiSlider");
+    if (dpiSlider) {
+        dpiSlider.addEventListener("input", (e) => updateDpi(e.target.value));
+    }
+    
+    document.querySelectorAll(".dpi-presets button").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            const dpi = parseInt(e.target.getAttribute("data-dpi"), 10);
+            if (dpi) setDpi(dpi);
+        });
+    });
+});
