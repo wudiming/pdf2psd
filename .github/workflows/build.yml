@@ -1,0 +1,264 @@
+name: 🏗️ Build & Release
+
+# 触发条件：
+#   - 推送 vX.Y.Z 格式的 tag（自动发布 Release）
+#   - 手动触发（workflow_dispatch），只构建不发布
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # 允许创建 GitHub Release
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 🪟 Windows — 单文件便携 .exe（双击直接运行）
+# ══════════════════════════════════════════════════════════════════════════════
+jobs:
+  build-windows:
+    name: 🪟 Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build portable .exe
+        run: |
+          pyinstaller `
+            --onefile `
+            --windowed `
+            --name "PDF2PSD" `
+            --collect-all customtkinter `
+            app.py
+          Move-Item dist\PDF2PSD.exe PDF2PSD-Windows.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-windows
+          path: PDF2PSD-Windows.exe
+          retention-days: 7
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 🍎 macOS — .app 打包进 .dmg（拖到任意位置双击运行）
+# ══════════════════════════════════════════════════════════════════════════════
+  build-macos:
+    name: 🍎 macOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build .app bundle
+        run: |
+          pyinstaller \
+            --windowed \
+            --name "PDF2PSD" \
+            --collect-all customtkinter \
+            app.py
+
+      - name: Package as DMG
+        run: |
+          mkdir -p dmg_src
+          cp -r "dist/PDF2PSD.app" dmg_src/
+          # 可选：创建 Applications 快捷方式方便拖入
+          ln -s /Applications dmg_src/Applications
+
+          hdiutil create \
+            -volname "PDF2PSD" \
+            -srcfolder dmg_src \
+            -ov -format UDZO \
+            PDF2PSD-macOS.dmg
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-macos
+          path: PDF2PSD-macOS.dmg
+          retention-days: 7
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 🐧 Linux — AppImage 单文件（chmod +x 后双击运行）
+# ══════════════════════════════════════════════════════════════════════════════
+  build-linux:
+    name: 🐧 Linux
+    runs-on: ubuntu-20.04   # 20.04 对 FUSE/AppImage 兼容性最好
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y python3-tk xvfb libfuse2 file
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build with PyInstaller (onedir, for AppImage)
+        run: |
+          xvfb-run --auto-servernum pyinstaller \
+            --onedir \
+            --windowed \
+            --name PDF2PSD \
+            --collect-all customtkinter \
+            app.py
+
+      - name: Create AppImage
+        run: |
+          # ── 下载 appimagetool ──────────────────────────────────────────────
+          wget -q \
+            "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" \
+            -O appimagetool
+          chmod +x appimagetool
+
+          # ── 组装 AppDir 结构 ───────────────────────────────────────────────
+          mkdir -p AppDir
+          cp -r dist/PDF2PSD/* AppDir/
+
+          # AppRun 入口脚本
+          cat > AppDir/AppRun << 'EOF'
+          #!/bin/bash
+          SELF=$(readlink -f "$0")
+          HERE=${SELF%/*}
+          export PATH="${HERE}:${PATH}"
+          exec "${HERE}/PDF2PSD" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+
+          # .desktop 描述文件（文件管理器用）
+          cat > AppDir/PDF2PSD.desktop << 'EOF'
+          [Desktop Entry]
+          Name=PDF2PSD
+          Comment=PDF 转 PSD 转换工具 - 每页变独立图层
+          Exec=PDF2PSD
+          Icon=PDF2PSD
+          Type=Application
+          Categories=Graphics;Office;
+          EOF
+
+          # ── 用 Python 生成图标 PNG ─────────────────────────────────────────
+          python3 - << 'PYEOF'
+          from PIL import Image, ImageDraw
+          size = 256
+          img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+          d = ImageDraw.Draw(img)
+          # 深色圆形背景
+          d.ellipse([4, 4, size-4, size-4], fill=(22, 27, 45, 255))
+          # 蓝色环
+          d.ellipse([18, 18, size-18, size-18], outline=(74, 158, 255, 255), width=14)
+          # 简单 "P" 形图标
+          d.rectangle([72, 68, 94, 192], fill=(74, 158, 255, 255))
+          d.ellipse([72, 68, 152, 148], fill=(74, 158, 255, 255))
+          d.ellipse([84, 80, 140, 136], fill=(22, 27, 45, 255))
+          img.save("AppDir/PDF2PSD.png")
+          PYEOF
+
+          # ── 构建 AppImage ──────────────────────────────────────────────────
+          ARCH=x86_64 ./appimagetool AppDir PDF2PSD-Linux.AppImage
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-linux
+          path: PDF2PSD-Linux.AppImage
+          retention-days: 7
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 🚀 发布 GitHub Release（仅在推送 tag 时触发）
+# ══════════════════════════════════════════════════════════════════════════════
+  release:
+    name: 🚀 Create Release
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-windows
+          path: artifacts/
+
+      - name: Download macOS build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-macos
+          path: artifacts/
+
+      - name: Download Linux build
+        uses: actions/download-artifact@v4
+        with:
+          name: build-linux
+          path: artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "PDF2PSD ${{ github.ref_name }}"
+          body: |
+            ## 📦 PDF → PSD 转换工具 ${{ github.ref_name }}
+
+            将多页 PDF 转换为单个 PSD 文件，**每页自动成为独立图层**，无需安装 Photoshop。
+
+            ---
+
+            ### 📥 下载（便携版，无需安装，不写入系统目录）
+
+            | 平台 | 文件 | 使用方式 |
+            |------|------|----------|
+            | 🪟 Windows | `PDF2PSD-Windows.exe` | 双击直接运行，放哪都行 |
+            | 🍎 macOS | `PDF2PSD-macOS.dmg` | 挂载后将 .app 拖到桌面/任意文件夹，双击运行 |
+            | 🐧 Linux | `PDF2PSD-Linux.AppImage` | `chmod +x` 后双击或直接运行 |
+
+            ---
+
+            ### ⚠️ macOS 首次运行说明
+            macOS Gatekeeper 可能提示「无法验证开发者」，解决方法：
+            > **右键点击 .app → 打开 → 再次点击「打开」**
+
+            或在终端运行：
+            ```bash
+            xattr -cr /path/to/PDF2PSD.app
+            ```
+
+            ### 🐧 Linux 使用方法
+            ```bash
+            chmod +x PDF2PSD-Linux.AppImage
+            ./PDF2PSD-Linux.AppImage
+            # 或直接在文件管理器中双击（需先标记为可执行）
+            ```
+          files: |
+            artifacts/PDF2PSD-Windows.exe
+            artifacts/PDF2PSD-macOS.dmg
+            artifacts/PDF2PSD-Linux.AppImage
+          draft: false
+          prerelease: false
