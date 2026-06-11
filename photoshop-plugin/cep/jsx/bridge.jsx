@@ -47,7 +47,8 @@ function getPageCount(pdfPathEncoded) {
         opts.bitsPerChannel   = BitsPerChannelType.EIGHT;
         opts.colorMode        = OpenDocumentMode.RGB;
         opts.resolution       = 72;
-        opts.pageNumber       = 1;
+        opts.page             = 1;
+        opts.usePageNumber    = true;
 
         var originalDisplayDialogs = app.displayDialogs;
         app.displayDialogs = DialogModes.NO;
@@ -64,7 +65,7 @@ function getPageCount(pdfPathEncoded) {
         var hi = 1;
         while (true) {
             try {
-                opts.pageNumber = hi + 1;
+                opts.page = hi + 1;
                 var d = app.open(pdfFile, opts);
                 d.close(SaveOptions.DONOTSAVECHANGES);
                 hi = hi + 1;
@@ -115,6 +116,7 @@ function importPDFAsLayers(pdfPathEncoded, totalPages, dpi) {
         importOpts.resolution       = dpi;
         importOpts.suppressWarnings = true;
         importOpts.cropPage         = CropToType.MEDIABOX;
+        importOpts.usePageNumber    = true;
 
         var masterDoc  = null;
         var succeeded  = 0;
@@ -123,7 +125,7 @@ function importPDFAsLayers(pdfPathEncoded, totalPages, dpi) {
         app.displayDialogs = DialogModes.NO;
 
         for (var i = 1; i <= totalPages; i++) {
-            importOpts.pageNumber = i;
+            importOpts.page = i;
 
             var pageDoc;
             try {

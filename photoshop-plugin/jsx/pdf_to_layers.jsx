@@ -32,7 +32,6 @@
     prog.stLabel.justify = "center";
     prog.center(); prog.show();
 
-    // ── 3. 逐页打开 PDF ──────────────────────────────────────────────────────
     var importOpts = new PDFOpenOptions();
     importOpts.antiAlias       = true;
     importOpts.bitsPerChannel  = BitsPerChannelType.EIGHT;
@@ -40,6 +39,7 @@
     importOpts.resolution      = dpi;
     importOpts.suppressWarnings = true;
     importOpts.cropPage        = CropToType.MEDIABOX;
+    importOpts.usePageNumber   = true;
 
     var masterDoc = null;
     var succeeded = 0;
@@ -49,7 +49,7 @@
         prog.progBar.value = i - 1;
         prog.update();
 
-        importOpts.pageNumber = i;
+        importOpts.page = i;
 
         var pageDoc;
         try {
