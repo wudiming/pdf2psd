@@ -254,9 +254,11 @@ jobs:
 
       - name: Package CEP plugin as .zip
         run: |
+          sudo apt-get install -y dos2unix
           mkdir temp_zip
           cp -r photoshop-plugin/cep temp_zip/
           cp photoshop-plugin/installer_scripts/* temp_zip/
+          unix2dos temp_zip/install_windows.bat
           cd temp_zip
           zip -r ../PDF2PSD-CEP-Plugin.zip .
           cd ..
