@@ -62,7 +62,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-windows
-          path: PDF2PSD-Windows.exe
+          path: |
+            PDF2PSD-Windows.exe
+            PDF2PSD-Plugin-Installer-Windows.exe
           retention-days: 7
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -138,7 +140,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-macos
-          path: PDF2PSD-macOS.dmg
+          path: |
+            PDF2PSD-macOS.dmg
+            PDF2PSD-Plugin-Installer-macOS
           retention-days: 7
 
 # ══════════════════════════════════════════════════════════════════════════════
