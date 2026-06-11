@@ -136,7 +136,7 @@ class PDF2PSDApp(ctk.CTk):
         super().__init__()
 
         self.title("PDF → PSD 转换工具")
-        self.geometry("560x720")
+        self.geometry("560x800")
         self.resizable(False, False)
         self.configure(fg_color=BG_MAIN)
 

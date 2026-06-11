@@ -21,33 +21,35 @@ from typing import List, Optional, Tuple
 # ── Compression helpers ───────────────────────────────────────────────────────
 
 def _packbits_encode(data: bytes) -> bytes:
-    """PackBits RLE compression (PSD compression type 1)."""
+    """PackBits RLE compression (PSD compression type 1) optimized with groupby."""
+    from itertools import groupby
     if not data:
         return b''
-    buf = list(data)
-    result = []
-    i = 0
-    n = len(buf)
-    while i < n:
-        j = i + 1
-        while j < n and (j - i) < 128 and buf[j] == buf[i]:
-            j += 1
-        run_len = j - i
-        if run_len >= 2:
-            result.append(257 - run_len)
-            result.append(buf[i])
-            i = j
+        
+    res = bytearray()
+    literals = bytearray()
+    
+    def flush_literals():
+        while literals:
+            chunk = literals[:128]
+            res.append(len(chunk) - 1)
+            res.extend(chunk)
+            del literals[:128]
+
+    for k, g in groupby(data):
+        count = sum(1 for _ in g)
+        if count >= 3:
+            flush_literals()
+            while count > 0:
+                run = min(count, 128)
+                res.append(257 - run)
+                res.append(k)
+                count -= run
         else:
-            j = i + 1
-            while j < n and (j - i) < 128:
-                if j + 2 < n and buf[j] == buf[j + 1] == buf[j + 2]:
-                    break
-                j += 1
-            lit_len = j - i
-            result.append(lit_len - 1)
-            result.extend(buf[i:j])
-            i = j
-    return bytes(result)
+            literals.extend(bytes([k]) * count)
+            
+    flush_literals()
+    return bytes(res)
 
 
 def _compress_channel(
