@@ -193,11 +193,51 @@ jobs:
           retention-days: 7
 
 # ══════════════════════════════════════════════════════════════════════════════
+# 🔌 Photoshop 插件 — 打包 UXP .ccx + JSX 脚本
+# ══════════════════════════════════════════════════════════════════════════════
+  build-plugin:
+    name: 🔌 Photoshop Plugin
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Package UXP plugin as .ccx
+        run: |
+          cd photoshop-plugin/uxp
+          # .ccx 就是 ZIP 改后缀；排除开发用文件
+          zip -r ../../PDF2PSD-Photoshop-Plugin.ccx . \
+            --exclude "node_modules/*" \
+            --exclude ".gitignore" \
+            --exclude "package.json" \
+            --exclude "package-lock.json"
+          cd ../..
+          echo "CCX size: $(du -sh PDF2PSD-Photoshop-Plugin.ccx)"
+
+      - name: Copy JSX script
+        run: cp photoshop-plugin/jsx/pdf_to_layers.jsx PDF2PSD-jsx-script.jsx
+
+      - name: Upload CCX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-plugin-ccx
+          path: PDF2PSD-Photoshop-Plugin.ccx
+          retention-days: 7
+
+      - name: Upload JSX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-plugin-jsx
+          path: PDF2PSD-jsx-script.jsx
+          retention-days: 7
+
+# ══════════════════════════════════════════════════════════════════════════════
 # 🚀 发布 GitHub Release（仅在推送 tag 时触发）
 # ══════════════════════════════════════════════════════════════════════════════
   release:
     name: 🚀 Create Release
-    needs: [build-windows, build-macos, build-linux]
+    needs: [build-windows, build-macos, build-linux, build-plugin]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 
@@ -220,6 +260,18 @@ jobs:
           name: build-linux
           path: artifacts/
 
+      - name: Download Plugin CCX
+        uses: actions/download-artifact@v4
+        with:
+          name: build-plugin-ccx
+          path: artifacts/
+
+      - name: Download Plugin JSX
+        uses: actions/download-artifact@v4
+        with:
+          name: build-plugin-jsx
+          path: artifacts/
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -233,32 +285,43 @@ jobs:
 
             ### 📥 下载（便携版，无需安装，不写入系统目录）
 
-            | 平台 | 文件 | 使用方式 |
+            | 类型 | 文件 | 使用方式 |
             |------|------|----------|
-            | 🪟 Windows | `PDF2PSD-Windows.exe` | 双击直接运行，放哪都行 |
-            | 🍎 macOS | `PDF2PSD-macOS.dmg` | 挂载后将 .app 拖到桌面/任意文件夹，双击运行 |
-            | 🐧 Linux | `PDF2PSD-Linux.AppImage` | `chmod +x` 后双击或直接运行 |
+            | 🪟 Windows 独立工具 | `PDF2PSD-Windows.exe` | 双击直接运行 |
+            | 🍎 macOS 独立工具 | `PDF2PSD-macOS.dmg` | 挂载后拖 .app 到任意位置运行 |
+            | 🐧 Linux 独立工具 | `PDF2PSD-Linux.AppImage` | `chmod +x` 后运行 |
+            | 🔌 PS 插件（UXP） | `PDF2PSD-Photoshop-Plugin.ccx` | 双击安装到 Photoshop |
+            | 📜 PS 脚本（JSX） | `PDF2PSD-jsx-script.jsx` | 拷贝到 PS Scripts 目录 |
+
+            ---
+
+            ### 🔌 Photoshop 插件安装说明
+            **UXP 插件（PS 2021+，推荐）**
+            > 下载 `PDF2PSD-Photoshop-Plugin.ccx`，双击即可安装到 Photoshop。
+            > 安装后在菜单 **插件 → PDF2PSD** 打开面板。
+
+            **JSX 脚本（所有 PS 版本）**
+            > 下载 `PDF2PSD-jsx-script.jsx`，拷贝到 Photoshop 的 Scripts 目录：
+            > - Windows: `C:\Program Files\Adobe\Adobe Photoshop XXXX\Presets\Scripts\`
+            > - macOS: `/Applications/Adobe Photoshop XXXX/Presets/Scripts/`
+            > 重启 PS 后在 **文件 → 脚本** 菜单找到。
 
             ---
 
             ### ⚠️ macOS 首次运行说明
-            macOS Gatekeeper 可能提示「无法验证开发者」，解决方法：
-            > **右键点击 .app → 打开 → 再次点击「打开」**
-
-            或在终端运行：
-            ```bash
-            xattr -cr /path/to/PDF2PSD.app
-            ```
+            macOS Gatekeeper 可能提示「无法验证开发者」：
+            > 右键点击 .app → 打开 → 再次点击「打开」
 
             ### 🐧 Linux 使用方法
             ```bash
             chmod +x PDF2PSD-Linux.AppImage
             ./PDF2PSD-Linux.AppImage
-            # 或直接在文件管理器中双击（需先标记为可执行）
             ```
           files: |
             artifacts/PDF2PSD-Windows.exe
             artifacts/PDF2PSD-macOS.dmg
             artifacts/PDF2PSD-Linux.AppImage
+            artifacts/PDF2PSD-Photoshop-Plugin.ccx
+            artifacts/PDF2PSD-jsx-script.jsx
           draft: false
           prerelease: false
