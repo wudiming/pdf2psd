@@ -64,43 +64,27 @@
             break;  // 页面已经遍历完
         }
 
-        // 将页面展平并全选
-        pageDoc.flatten();
-        pageDoc.selection.selectAll();
-        pageDoc.selection.copy();
-
         if (i === 1) {
             // 第一页：建立主文档
             var w = pageDoc.width.as("px");
             var h = pageDoc.height.as("px");
-            pageDoc.close(SaveOptions.DONOTSAVECHANGES);
-
             masterDoc = app.documents.add(
                 w, h, dpi,
                 docName,
                 NewDocumentMode.RGB,
                 DocumentFill.TRANSPARENT
             );
-        } else {
-            pageDoc.close(SaveOptions.DONOTSAVECHANGES);
         }
 
-        // 粘贴为新图层
-        app.activeDocument = masterDoc;
-        masterDoc.paste();  // 旧版 PS：创建浮动选区；新版 PS：直接创建像素图层
+        // 直接复制图层到主文档，完美保留透明通道
+        app.activeDocument = pageDoc;
+        var pdfLayer = pageDoc.activeLayer;
+        pdfLayer.name = "第 " + i + " 页";
+        
+        pdfLayer.duplicate(masterDoc, ElementPlacement.PLACEATBEGINNING);
 
-        // 将浮动选区合并为图层（旧版 PS 需要；新版 PS paste 已直接创建图层，此步骤会报错，忽略即可）
-        try {
-            executeAction(
-                charIDToTypeID("Mrg2"),
-                new ActionDescriptor(),
-                DialogModes.NO
-            );
-        } catch (mergeErr) {
-            // 新版 Photoshop (CC 2020+)：paste() 已直接创建像素图层，无需合并浮动选区
-        }
+        pageDoc.close(SaveOptions.DONOTSAVECHANGES);
 
-        masterDoc.activeLayer.name = "第 " + i + " 页";
         succeeded++;
     }
 
