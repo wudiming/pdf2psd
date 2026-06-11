@@ -1,27 +1,27 @@
 {
-  "id": "com.wudiming.pdf2psd",
-  "name": "PDF → PSD 图层导入",
+  "id": "com.wudiming.pdf2psduxp",
+  "name": "PDF2PSD",
   "version": "1.0.0",
-  "description": "将多页 PDF 导入为 Photoshop 图层，每页成为独立图层",
-  "author": "wudiming",
-  "homepage": "https://github.com/wudiming/pdf2psd",
-
-  "host": {
-    "app": "PS",
-    "minVersion": "23.0.0"
-  },
-
+  "main": "index.html",
+  "manifestVersion": 5,
+  "host": [
+    {
+      "app": "PS",
+      "minVersion": "23.0.0"
+    }
+  ],
   "entrypoints": [
     {
       "type": "panel",
       "id": "mainPanel",
-      "label": { "default": "PDF → PSD" },
+      "label": {
+        "default": "PDF → PSD"
+      },
       "minimumSize": { "width": 280, "height": 420 },
       "maximumSize": { "width": 600, "height": 900 },
       "preferredDockedSize": { "width": 300, "height": 520 }
     }
   ],
-
   "requiredPermissions": {
     "localFileSystem": "fullAccess",
     "network": {
