@@ -20,61 +20,63 @@ function getPageCount(pdfPathEncoded) {
             return '{ "ok": false, "error": "文件不存在" }';
         }
 
-        // 方法1：读取 PDF 二进制，找 /Count 字典条目（快速但不100%可靠）
-        pdfFile.encoding = 'BINARY';
-        pdfFile.open('r');
-        var raw = pdfFile.read(65536); // 读前64KB通常足以找到页数
-        pdfFile.close();
-
-        // 查找 /Type /Pages ... /Count N 模式
-        var countMatch = raw.match(/\/Type\s*\/Pages[\s\S]{0,200}?\/Count\s+(\d+)/);
-        if (countMatch && countMatch[1]) {
-            var n = parseInt(countMatch[1], 10);
-            if (n > 0 && n < 10000) {
-                return '{ "ok": true, "count": ' + n + ' }';
-            }
-        }
-
-        // 方法2：数 /Type /Page 出现次数（备用）
-        var pageMatches = raw.match(/\/Type\s*\/Page[^s]/g);
-        if (pageMatches && pageMatches.length > 0) {
-            return '{ "ok": true, "count": ' + pageMatches.length + ' }';
-        }
-
-        // 方法3：尝试打开获取页数（最慢但最准确）
         var opts = new PDFOpenOptions();
         opts.suppressWarnings = true;
         opts.bitsPerChannel   = BitsPerChannelType.EIGHT;
         opts.colorMode        = OpenDocumentMode.RGB;
-        opts.resolution       = 72;
-        opts.page             = 1;
+        opts.resolution       = 72;  // 最低分辨率加速探测
         opts.usePageNumber    = true;
 
         var originalDisplayDialogs = app.displayDialogs;
         app.displayDialogs = DialogModes.NO;
 
-        try {
-            var testDoc = app.open(pdfFile, opts);
-            testDoc.close(SaveOptions.DONOTSAVECHANGES);
-        } catch (e) {
+        function canOpenPage(p) {
+            opts.page = p;
+            try {
+                var d = app.open(pdfFile, opts);
+                d.close(SaveOptions.DONOTSAVECHANGES);
+                return true;
+            } catch(e) {
+                return false;
+            }
+        }
+
+        // 1. 检查第1页
+        if (!canOpenPage(1)) {
             app.displayDialogs = originalDisplayDialogs;
             return '{ "ok": false, "error": "无法作为 PDF 打开此文件" }';
         }
 
-        // 二分探测或顺序探测，这里顺序探测
-        var hi = 1;
-        while (true) {
-            try {
-                opts.page = hi + 1;
-                var d = app.open(pdfFile, opts);
-                d.close(SaveOptions.DONOTSAVECHANGES);
-                hi = hi + 1;
-                if (hi > 500) break; // 防止超大 PDF 无限循环
-            } catch(e) { break; }
+        // 2. 指数倍增寻找上限 (Exponential search)
+        var lo = 1;
+        var hi = 2;
+        while (canOpenPage(hi)) {
+            lo = hi;
+            hi = hi * 2;
+            if (hi > 2000) { // 保护上限
+                hi = 2000;
+                break;
+            }
+        }
+
+        // 3. 二分法精准定位 (Binary search)
+        // 已知 lo 是成功的，hi 是失败的（或者达到极限）
+        var ans = lo;
+        var low = lo + 1;
+        var high = hi - 1;
+
+        while (low <= high) {
+            var mid = Math.floor((low + high) / 2);
+            if (canOpenPage(mid)) {
+                ans = mid;    // mid 存在，说明总页数 >= mid
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
         }
 
         app.displayDialogs = originalDisplayDialogs;
-        return '{ "ok": true, "count": ' + hi + ' }';
+        return '{ "ok": true, "count": ' + ans + ' }';
 
     } catch (e) {
         var errStr = String(e.message || e).replace(/"/g, '\\"');
