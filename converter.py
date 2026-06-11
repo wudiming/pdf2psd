@@ -31,6 +31,7 @@ def convert_pdf_to_psd(
     pdf_path: str,
     output_path: str,
     dpi: int = 150,
+    compression: int = 2,
     progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ) -> None:
     """
@@ -40,6 +41,8 @@ def convert_pdf_to_psd(
         pdf_path         : Path to the input PDF.
         output_path      : Destination .psd file path.
         dpi              : Render resolution (72–300 recommended).
+        compression      : 0=RAW (fastest write), 1=RLE (smallest file),
+                           2=ZIP (default, fast + compact, requires PS CS+).
         progress_callback: Optional fn(current, total, message) for UI updates.
     """
     def report(current: int, total: int, msg: str) -> None:
@@ -73,8 +76,11 @@ def convert_pdf_to_psd(
 
     doc.close()
 
-    report(num_pages, num_pages, "正在写入 PSD 文件…")
+    comp_names = {0: "RAW（无压缩）", 1: "RLE", 2: "ZIP"}
+    report(num_pages, num_pages,
+           f"正在写入 PSD 文件（{comp_names.get(compression, '')} 压缩）…")
 
-    write_psd(output_path, images, layer_names=layer_names, dpi=dpi)
+    write_psd(output_path, images, layer_names=layer_names,
+              dpi=dpi, compression=compression)
 
     report(num_pages, num_pages, "转换完成！")

@@ -274,6 +274,49 @@ class PDF2PSDApp(ctk.CTk):
             )
             btn.pack(side="left", padx=(0, 6))
 
+        # ─ Compression Mode ───────────────────────────────────────────────────
+        cmp_card = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=12)
+        cmp_card.pack(fill="x", padx=24, pady=(0, 12))
+
+        cmp_top = ctk.CTkFrame(cmp_card, fg_color="transparent")
+        cmp_top.pack(fill="x", padx=16, pady=(12, 8))
+
+        ctk.CTkLabel(
+            cmp_top,
+            text="压缩模式",
+            font=ctk.CTkFont(family="Microsoft YaHei", size=13, weight="bold"),
+        ).pack(side="left")
+
+        self._compression_var = ctk.StringVar(value="ZIP（推荐）")
+        self._cmp_seg = ctk.CTkSegmentedButton(
+            cmp_card,
+            values=["RAW（最快）", "ZIP（推荐）", "RLE（最小）"],
+            variable=self._compression_var,
+            font=ctk.CTkFont(family="Microsoft YaHei", size=11),
+            selected_color=ACCENT,
+            selected_hover_color=ACCENT_HOVER,
+        )
+        self._cmp_seg.pack(fill="x", padx=16, pady=(0, 6))
+
+        cmp_hint_map = {
+            "RAW（最快）": "无压缩，写入最快，文件最大。适合大文件或急用场景。",
+            "ZIP（推荐）": "zlib 压缩，速度快且文件小。需要 Photoshop CS 或更高版本。",
+            "RLE（最小）": "PackBits 压缩，文件最小，写入较慢。兼容所有 PS 版本。",
+        }
+        self._cmp_hint = ctk.CTkLabel(
+            cmp_card,
+            text=cmp_hint_map["ZIP（推荐）"],
+            font=ctk.CTkFont(family="Microsoft YaHei", size=10),
+            text_color=TEXT_MUTED,
+            anchor="w",
+            wraplength=480,
+        )
+        self._cmp_hint.pack(fill="x", padx=16, pady=(0, 12), anchor="w")
+
+        def _on_cmp_change(val):
+            self._cmp_hint.configure(text=cmp_hint_map.get(val, ""))
+        self._cmp_seg.configure(command=_on_cmp_change)
+
         # ─ Status ─────────────────────────────────────────────────────────────
         self._status = StatusBar(self)
         self._status.pack(fill="x", padx=24, pady=(0, 12))
@@ -358,10 +401,13 @@ class PDF2PSDApp(ctk.CTk):
 
         def _run():
             try:
+                compression_map = {"RAW（最快）": 0, "ZIP（推荐）": 2, "RLE（最小）": 1}
+                compression = compression_map.get(self._compression_var.get(), 2)
                 convert_pdf_to_psd(
                     self._pdf_path,
                     output_path,
                     dpi=dpi,
+                    compression=compression,
                     progress_callback=_cb,
                 )
                 self.after(0, self._on_done, output_path)

@@ -87,14 +87,18 @@
 
         // 粘贴为新图层
         app.activeDocument = masterDoc;
-        masterDoc.paste();  // 创建新图层
+        masterDoc.paste();  // 旧版 PS：创建浮动选区；新版 PS：直接创建像素图层
 
-        // 将浮动选区合并为图层
-        executeAction(
-            charIDToTypeID("Mrg2"),
-            new ActionDescriptor(),
-            DialogModes.NO
-        );
+        // 将浮动选区合并为图层（旧版 PS 需要；新版 PS paste 已直接创建图层，此步骤会报错，忽略即可）
+        try {
+            executeAction(
+                charIDToTypeID("Mrg2"),
+                new ActionDescriptor(),
+                DialogModes.NO
+            );
+        } catch (mergeErr) {
+            // 新版 Photoshop (CC 2020+)：paste() 已直接创建像素图层，无需合并浮动选区
+        }
 
         masterDoc.activeLayer.name = "第 " + i + " 页";
         succeeded++;
