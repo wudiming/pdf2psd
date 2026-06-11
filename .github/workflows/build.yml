@@ -103,7 +103,7 @@ jobs:
 # ══════════════════════════════════════════════════════════════════════════════
   build-linux:
     name: 🐧 Linux
-    runs-on: ubuntu-20.04   # 20.04 对 FUSE/AppImage 兼容性最好
+    runs-on: ubuntu-22.04   # ubuntu-20.04 已被淘汰，改用 22.04
 
     steps:
       - name: Checkout
@@ -118,6 +118,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -q
+          # libfuse2 用于 AppImage；ubuntu-22.04 上包名不变
           sudo apt-get install -y python3-tk xvfb libfuse2 file
 
       - name: Install Python dependencies
@@ -183,7 +184,8 @@ jobs:
           PYEOF
 
           # ── 构建 AppImage ──────────────────────────────────────────────────
-          ARCH=x86_64 ./appimagetool AppDir PDF2PSD-Linux.AppImage
+          # APPIMAGE_EXTRACT_AND_RUN=1 让 appimagetool 不依赖 FUSE（ubuntu-22.04 兼容）
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool AppDir PDF2PSD-Linux.AppImage
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
