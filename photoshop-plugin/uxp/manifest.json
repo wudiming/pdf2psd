@@ -18,10 +18,7 @@
       "label": { "default": "PDF → PSD" },
       "minimumSize": { "width": 280, "height": 420 },
       "maximumSize": { "width": 600, "height": 900 },
-      "preferredDockedSize": { "width": 300, "height": 520 },
-      "icons": [
-        { "width": 23, "height": 23, "path": "assets/icon-23.png", "scale": [1, 2], "theme": ["darkest", "dark", "light", "lightest", "all"] }
-      ]
+      "preferredDockedSize": { "width": 300, "height": 520 }
     }
   ],
 
