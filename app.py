@@ -279,7 +279,7 @@ class PDF2PSDApp(ctk.CTk):
 
         self._dpi_label = ctk.CTkLabel(
             dpi_top,
-            text="150 DPI",
+            text="300 DPI",
             font=ctk.CTkFont(family="Microsoft YaHei", size=13, weight="bold"),
             text_color=ACCENT,
         )
@@ -295,7 +295,7 @@ class PDF2PSDApp(ctk.CTk):
             button_hover_color=ACCENT_HOVER,
             progress_color=ACCENT,
         )
-        self._dpi_slider.set(150)
+        self._dpi_slider.set(300)
         self._dpi_slider.pack(fill="x", padx=16, pady=(0, 4))
 
         dpi_hints = ctk.CTkFrame(dpi_card, fg_color="transparent")
@@ -344,50 +344,71 @@ class PDF2PSDApp(ctk.CTk):
         # Body (hidden by default)
         self._opt_body = ctk.CTkFrame(opt_card, fg_color="transparent")
 
-        # Order sub-row
-        order_row = ctk.CTkFrame(self._opt_body, fg_color="transparent")
-        order_row.pack(fill="x", padx=16, pady=(0, 4))
-
+        # ── Section: 页面顺序
+        sec1 = ctk.CTkFrame(self._opt_body, fg_color="transparent")
+        sec1.pack(fill="x", padx=16, pady=(4, 2))
         ctk.CTkLabel(
-            order_row,
-            text="🔄 页面顺序",
-            font=ctk.CTkFont(family="Microsoft YaHei", size=12),
+            sec1, text="🔄  页面顺序",
+            font=ctk.CTkFont(family="Microsoft YaHei", size=11, weight="bold"),
         ).pack(side="left")
 
         self._order_var = ctk.StringVar(value="reverse")
 
-        chk_col = ctk.CTkFrame(order_row, fg_color="transparent")
-        chk_col.pack(side="right")
-
-        self._chk_r = ctk.CTkCheckBox(
-            chk_col, text="逆序（默认）",
+        # Row: 逆序
+        row_r = ctk.CTkFrame(self._opt_body, fg_color="transparent")
+        row_r.pack(fill="x", padx=26, pady=(2, 1))
+        ctk.CTkLabel(
+            row_r, text="逆序：第 1 页在最上方",
             font=ctk.CTkFont(family="Microsoft YaHei", size=11),
-            checkbox_width=16, checkbox_height=16,
+            text_color=TEXT_MUTED,
+        ).pack(side="left")
+        self._chk_r = ctk.CTkCheckBox(
+            row_r, text="",
+            checkbox_width=16, checkbox_height=16, width=20,
             command=lambda: self._set_order("reverse"),
         )
         self._chk_r.select()
-        self._chk_r.pack(anchor="e", pady=(0, 3))
+        self._chk_r.pack(side="right")
 
-        self._chk_f = ctk.CTkCheckBox(
-            chk_col, text="顺序",
+        # Row: 顺序
+        row_f = ctk.CTkFrame(self._opt_body, fg_color="transparent")
+        row_f.pack(fill="x", padx=26, pady=(1, 4))
+        ctk.CTkLabel(
+            row_f, text="顺序：第 N 页在最上方",
             font=ctk.CTkFont(family="Microsoft YaHei", size=11),
-            checkbox_width=16, checkbox_height=16,
+            text_color=TEXT_MUTED,
+        ).pack(side="left")
+        self._chk_f = ctk.CTkCheckBox(
+            row_f, text="",
+            checkbox_width=16, checkbox_height=16, width=20,
             command=lambda: self._set_order("forward"),
         )
-        self._chk_f.pack(anchor="e")
+        self._chk_f.pack(side="right")
 
-        # White layer sub-row
-        white_row = ctk.CTkFrame(self._opt_body, fg_color="transparent")
-        white_row.pack(fill="x", padx=16, pady=(6, 12))
+        # Divider
+        ctk.CTkFrame(self._opt_body, height=1, fg_color="#2e3450").pack(fill="x", padx=16, pady=(0, 4))
 
+        # ── Section: 添加白色底层
+        sec2 = ctk.CTkFrame(self._opt_body, fg_color="transparent")
+        sec2.pack(fill="x", padx=16, pady=(2, 2))
+        ctk.CTkLabel(
+            sec2, text="□  添加白色底层",
+            font=ctk.CTkFont(family="Microsoft YaHei", size=11, weight="bold"),
+        ).pack(side="left")
+
+        row_w = ctk.CTkFrame(self._opt_body, fg_color="transparent")
+        row_w.pack(fill="x", padx=26, pady=(2, 10))
+        ctk.CTkLabel(
+            row_w, text="在图层最下方添加白色 0 图层",
+            font=ctk.CTkFont(family="Microsoft YaHei", size=11),
+            text_color=TEXT_MUTED,
+        ).pack(side="left")
         self._add_white_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(
-            white_row,
-            text="在图层最下方添加纯白色 0 图层",
+            row_w, text="",
             variable=self._add_white_var,
-            font=ctk.CTkFont(family="Microsoft YaHei", size=12),
-            checkbox_width=18, checkbox_height=18,
-        ).pack(side="left")
+            checkbox_width=16, checkbox_height=16, width=20,
+        ).pack(side="right")
 
         def _toggle_opts(_event=None):
             self._opt_open = not self._opt_open
