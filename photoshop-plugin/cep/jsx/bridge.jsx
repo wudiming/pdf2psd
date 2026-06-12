@@ -138,7 +138,10 @@ function selectPDFFile() {
  * @param {number} dpi             渲染 DPI
  * @returns {string} JSON 字符串
  */
-function importPDFAsLayers(pdfPathEncoded, totalPages, dpi) {
+function importPDFAsLayers(pdfPathEncoded, totalPages, dpi, reverseOrder, addWhiteLayer) {
+    // reverseOrder: true = \u9003\u5e8f\uff08\u7b2c1\u9875\u5728\u6700\u4e0a\uff09\uff0c false = \u987a\u5e8f\uff08\u7b2c N \u9875\u5728\u6700\u4e0a\uff09
+    // \u9ed8\u8ba4\u9003\u5e8f
+    if (reverseOrder === undefined) reverseOrder = true;
     try {
         var pdfPath = decodeURI(pdfPathEncoded);
         var pdfFile = new File(pdfPath);
@@ -163,21 +166,27 @@ function importPDFAsLayers(pdfPathEncoded, totalPages, dpi) {
         var originalDisplayDialogs = app.displayDialogs;
         app.displayDialogs = DialogModes.NO;
 
-        for (var i = 1; i <= totalPages; i++) {
+        // 逃序 (reverseOrder=true): 从第 N 页开始倒序导入，这样第 1 页会被放到最上面
+        // 顺序 (reverseOrder=false): 从第 1 页开始正序导入，第 N 页在最上面
+        var startPage = reverseOrder ? totalPages : 1;
+        var endPage   = reverseOrder ? 1 : totalPages;
+        var step      = reverseOrder ? -1 : 1;
+
+        for (var i = startPage; reverseOrder ? (i >= endPage) : (i <= endPage); i += step) {
             importOpts.page = i;
 
             var pageDoc;
             try {
                 pageDoc = app.open(pdfFile, importOpts);
             } catch (e) {
-                if (i === 1) {
+                if (i === startPage) {
                     app.displayDialogs = originalDisplayDialogs;
                     return '{ "ok": false, "error": "无法打开 PDF 第1页" }';
                 }
-                break; // 页数已超出实际页数
+                break;
             }
 
-            if (i === 1) {
+            if (succeeded === 0) {
                 var w = pageDoc.width.as("px");
                 var h = pageDoc.height.as("px");
                 masterDoc = app.documents.add(
@@ -217,7 +226,28 @@ function importPDFAsLayers(pdfPathEncoded, totalPages, dpi) {
         }
 
         // ── 关键修复：执行「图像 → 显示全部」(Reveal All) ──────────────────
-        // 防止 A2 等超大页面的图层内容超出以 A3 为基准创建的画布，导致显示不全
+        // ── 添加白色底层 (第 0 页) ────────────────────────────────────────────
+        if (addWhiteLayer) {
+            try {
+                app.activeDocument = masterDoc;
+                var whiteLayer = masterDoc.artLayers.add();
+                whiteLayer.name = "第 0 页";
+                // 放到最底层
+                whiteLayer.move(masterDoc, ElementPlacement.PLACEATEND);
+                // 全选并填充白色
+                masterDoc.selection.selectAll();
+                var whiteColor = new SolidColor();
+                whiteColor.rgb.red   = 255;
+                whiteColor.rgb.green = 255;
+                whiteColor.rgb.blue  = 255;
+                app.activeDocument = masterDoc;
+                masterDoc.activeLayer = whiteLayer;
+                masterDoc.selection.fill(whiteColor, ColorBlendMode.NORMAL, 100, false);
+                masterDoc.selection.deselect();
+            } catch (wErr) { /* 忽略白底错误 */ }
+        }
+
+        // ── 关键修复：执行「图像 → 显示全部」(Reveal All) ──────────────
         try {
             app.activeDocument = masterDoc;
             var idrevealAll = stringIDToTypeID("revealAll");

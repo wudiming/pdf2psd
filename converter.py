@@ -33,6 +33,8 @@ def convert_pdf_to_psd(
     dpi: int = 150,
     compression: int = 1,
     total_pages: int | None = None,
+    reverse_order: bool = True,
+    add_white_layer: bool = True,
     progress_callback: Optional[Callable[[int, int, str], None]] = None,
 ) -> None:
     """
@@ -64,21 +66,30 @@ def convert_pdf_to_psd(
     scale = dpi / 72.0
     matrix = fitz.Matrix(scale, scale)
 
+    page_indices = list(range(num_pages))  # 0-based
+    if reverse_order:
+        page_indices = list(reversed(page_indices))  # N-1 → 0，这样 PSD 中第 1 页在最上面
+
     images: List[Image.Image] = []
     layer_names: List[str] = []
 
-    for i, page in enumerate(doc):
-        report(i, num_pages, f"渲染第 {i + 1} / {num_pages} 页…")
+    for order_idx, page_idx in enumerate(page_indices):
+        report(order_idx, num_pages, f"渲染第 {page_idx + 1} / {len(doc)} 页…")
 
         # alpha=True：保留 PDF 的透明通道，让图层背景透明而非白底
-        # 对于有白色页面背景的 PDF，白色区域仍会保留；
-        # 对于设计类 PDF（Illustrator/InDesign 导出），背景将透明
-        pix = page.get_pixmap(matrix=matrix, alpha=True)
+        pix = doc[page_idx].get_pixmap(matrix=matrix, alpha=True)
         img = Image.frombytes("RGBA", [pix.width, pix.height], pix.samples)
         images.append(img)
-        layer_names.append(f"第 {i + 1} 页")
+        layer_names.append(f"第 {page_idx + 1} 页")
 
     doc.close()
+
+    # 白色底层：与第一页大小相同，纯白 RGBA
+    if add_white_layer and images:
+        w, h = images[0].size
+        white_img = Image.new("RGBA", (w, h), (255, 255, 255, 255))
+        images.append(white_img)
+        layer_names.append("第 0 页")
 
     comp_names = {0: "RAW（无压缩）", 1: "RLE"}
     report(num_pages, num_pages,

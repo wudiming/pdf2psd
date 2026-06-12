@@ -321,7 +321,56 @@ class PDF2PSDApp(ctk.CTk):
             )
             btn.pack(side="left", padx=(0, 6), expand=True, fill="x")
 
-        # ─ Status ─────────────────────────────────────────────────────────────
+        # ─ Options ─────────────────────────────────────────────────
+        opt_card = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=12)
+        opt_card.pack(fill="x", padx=24, pady=(0, 12))
+
+        ctk.CTkLabel(
+            opt_card,
+            text="⚙️ 导入选项",
+            font=ctk.CTkFont(family="Microsoft YaHei", size=13, weight="bold"),
+        ).pack(anchor="w", padx=16, pady=(12, 6))
+
+        # ─ Order row
+        order_row = ctk.CTkFrame(opt_card, fg_color="transparent")
+        order_row.pack(fill="x", padx=16, pady=(0, 6))
+
+        ctk.CTkLabel(
+            order_row,
+            text="🔄 页面顺序",
+            font=ctk.CTkFont(family="Microsoft YaHei", size=12),
+        ).pack(side="left")
+
+        self._order_var = ctk.StringVar(value="reverse")
+
+        btn_frame = ctk.CTkFrame(order_row, fg_color="transparent")
+        btn_frame.pack(side="right")
+        ctk.CTkRadioButton(
+            btn_frame, text="逃序（默认）",
+            variable=self._order_var, value="reverse",
+            font=ctk.CTkFont(family="Microsoft YaHei", size=11),
+        ).pack(side="left", padx=(0, 12))
+        ctk.CTkRadioButton(
+            btn_frame, text="顺序",
+            variable=self._order_var, value="forward",
+            font=ctk.CTkFont(family="Microsoft YaHei", size=11),
+        ).pack(side="left")
+
+        # ─ White layer row
+        white_row = ctk.CTkFrame(opt_card, fg_color="transparent")
+        white_row.pack(fill="x", padx=16, pady=(0, 12))
+
+        self._add_white_var = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(
+            white_row,
+            text="在最底层添加白色底层（第 0 页）",
+            variable=self._add_white_var,
+            font=ctk.CTkFont(family="Microsoft YaHei", size=12),
+            checkbox_width=18,
+            checkbox_height=18,
+        ).pack(side="left")
+
+        # ─ Status ───────────────────────────────────────────────────────────────────
         self._status = StatusBar(self)
         self._status.pack(fill="x", padx=24, pady=(0, 12))
 
@@ -431,6 +480,8 @@ class PDF2PSDApp(ctk.CTk):
         self._status.update("准备中…", 0)
 
         dpi = int(self._dpi_slider.get())
+        reverse_order = (self._order_var.get() == "reverse")
+        add_white = self._add_white_var.get()
         # Use manually set page count (allows partial conversion)
         try:
             total_pages = int(self._page_entry.get())
@@ -455,6 +506,8 @@ class PDF2PSDApp(ctk.CTk):
                     dpi=dpi,
                     compression=1,  # RLE
                     total_pages=total_pages,
+                    reverse_order=reverse_order,
+                    add_white_layer=add_white,
                     progress_callback=_cb,
                 )
                 self.after(0, self._on_done, output_path)
