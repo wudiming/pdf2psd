@@ -321,19 +321,32 @@ class PDF2PSDApp(ctk.CTk):
             )
             btn.pack(side="left", padx=(0, 6), expand=True, fill="x")
 
-        # ─ Options ─────────────────────────────────────────────────
+        # ─ Options (collapsible) ────────────────────────────────
         opt_card = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=12)
         opt_card.pack(fill="x", padx=24, pady=(0, 12))
 
+        opt_header = ctk.CTkFrame(opt_card, fg_color="transparent", cursor="hand2")
+        opt_header.pack(fill="x", padx=16, pady=(12, 12))
+
         ctk.CTkLabel(
-            opt_card,
+            opt_header,
             text="⚙️ 导入选项",
             font=ctk.CTkFont(family="Microsoft YaHei", size=13, weight="bold"),
-        ).pack(anchor="w", padx=16, pady=(12, 6))
+        ).pack(side="left")
 
-        # ─ Order row
-        order_row = ctk.CTkFrame(opt_card, fg_color="transparent")
-        order_row.pack(fill="x", padx=16, pady=(0, 6))
+        self._opt_open = False
+        self._opt_arrow = ctk.CTkLabel(
+            opt_header, text="▶",
+            font=ctk.CTkFont(size=11), text_color=TEXT_MUTED,
+        )
+        self._opt_arrow.pack(side="right")
+
+        # Body (hidden by default)
+        self._opt_body = ctk.CTkFrame(opt_card, fg_color="transparent")
+
+        # Order sub-row
+        order_row = ctk.CTkFrame(self._opt_body, fg_color="transparent")
+        order_row.pack(fill="x", padx=16, pady=(0, 4))
 
         ctk.CTkLabel(
             order_row,
@@ -343,32 +356,53 @@ class PDF2PSDApp(ctk.CTk):
 
         self._order_var = ctk.StringVar(value="reverse")
 
-        btn_frame = ctk.CTkFrame(order_row, fg_color="transparent")
-        btn_frame.pack(side="right")
-        ctk.CTkRadioButton(
-            btn_frame, text="逃序（默认）",
-            variable=self._order_var, value="reverse",
-            font=ctk.CTkFont(family="Microsoft YaHei", size=11),
-        ).pack(side="left", padx=(0, 12))
-        ctk.CTkRadioButton(
-            btn_frame, text="顺序",
-            variable=self._order_var, value="forward",
-            font=ctk.CTkFont(family="Microsoft YaHei", size=11),
-        ).pack(side="left")
+        chk_col = ctk.CTkFrame(order_row, fg_color="transparent")
+        chk_col.pack(side="right")
 
-        # ─ White layer row
-        white_row = ctk.CTkFrame(opt_card, fg_color="transparent")
-        white_row.pack(fill="x", padx=16, pady=(0, 12))
+        self._chk_r = ctk.CTkCheckBox(
+            chk_col, text="逆序（默认）",
+            font=ctk.CTkFont(family="Microsoft YaHei", size=11),
+            checkbox_width=16, checkbox_height=16,
+            command=lambda: self._set_order("reverse"),
+        )
+        self._chk_r.select()
+        self._chk_r.pack(anchor="e", pady=(0, 3))
+
+        self._chk_f = ctk.CTkCheckBox(
+            chk_col, text="顺序",
+            font=ctk.CTkFont(family="Microsoft YaHei", size=11),
+            checkbox_width=16, checkbox_height=16,
+            command=lambda: self._set_order("forward"),
+        )
+        self._chk_f.pack(anchor="e")
+
+        # White layer sub-row
+        white_row = ctk.CTkFrame(self._opt_body, fg_color="transparent")
+        white_row.pack(fill="x", padx=16, pady=(6, 12))
 
         self._add_white_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(
             white_row,
-            text="在最底层添加白色底层（第 0 页）",
+            text="在图层最下方添加纯白色 0 图层",
             variable=self._add_white_var,
             font=ctk.CTkFont(family="Microsoft YaHei", size=12),
-            checkbox_width=18,
-            checkbox_height=18,
+            checkbox_width=18, checkbox_height=18,
         ).pack(side="left")
+
+        def _toggle_opts(_event=None):
+            self._opt_open = not self._opt_open
+            if self._opt_open:
+                self._opt_body.pack(fill="x")
+                self._opt_arrow.configure(text="▼")
+                opt_header.configure(pady=(12, 0))
+            else:
+                self._opt_body.pack_forget()
+                self._opt_arrow.configure(text="▶")
+                opt_header.configure(pady=(12, 12))
+
+        opt_header.bind("<Button-1>", _toggle_opts)
+        for w in opt_header.winfo_children():
+            w.bind("<Button-1>", _toggle_opts)
 
         # ─ Status ───────────────────────────────────────────────────────────────────
         self._status = StatusBar(self)
@@ -397,6 +431,16 @@ class PDF2PSDApp(ctk.CTk):
         ).pack(pady=(4, 16))
 
     # ── Callbacks ─────────────────────────────────────────────────────────────
+
+    def _set_order(self, val: str):
+        """互斥逆序/顺序复选框逻辑"""
+        self._order_var.set(val)
+        if val == "reverse":
+            self._chk_r.select()
+            self._chk_f.deselect()
+        else:
+            self._chk_f.select()
+            self._chk_r.deselect()
 
     def _on_pdf_selected(self, path: str):
         self._pdf_path = path

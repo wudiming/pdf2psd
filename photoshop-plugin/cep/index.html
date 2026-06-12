@@ -165,50 +165,66 @@
   .dpi-btn:hover  { border-color: var(--accent); color: var(--text); }
   .dpi-btn.active { border-color: var(--accent); background: rgba(74,158,255,.15); color: var(--accent); font-weight: 700; }
 
-  /* ── Toggle Row ─────────────────────────────────────────── */
-  .option-row {
+  /* ── Collapsible Options Card ─────────────────────────────── */
+  .opt-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 7px 0;
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: 0;
+  }
+  .opt-header .card-label { margin-bottom: 0; }
+  .opt-chevron {
+    font-size: 11px;
+    color: var(--muted);
+    transition: transform .2s;
+  }
+  .opt-chevron.open { transform: rotate(180deg); }
+  .opt-body {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height .25s ease, padding .2s ease;
+  }
+  .opt-body.open { max-height: 300px; padding-top: 8px; }
+
+  .option-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 6px 0;
     border-bottom: 1px solid var(--border);
+    gap: 8px;
   }
   .option-row:last-child { border-bottom: none; }
   .option-label { color: var(--text); font-size: 11.5px; }
-  .option-sub   { color: var(--muted); font-size: 10px; margin-top: 1px; }
+  .option-sub   { color: var(--muted); font-size: 10px; margin-top: 2px; }
 
-  /* pill toggle */
-  .pill-toggle {
+  /* exclusive checkbox pair */
+  .excl-checks { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+  .excl-checks label {
     display: flex;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    overflow: hidden;
-  }
-  .pill-toggle button {
-    border: none;
-    background: transparent;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
     color: var(--muted);
-    font-size: 10px;
-    font-family: inherit;
-    padding: 4px 10px;
     cursor: pointer;
-    transition: all .18s;
     white-space: nowrap;
   }
-  .pill-toggle button.active {
-    background: var(--accent);
-    color: #fff;
-    border-radius: 20px;
-    font-weight: 700;
+  .excl-checks input[type=checkbox] {
+    width: 14px; height: 14px;
+    accent-color: var(--accent);
+    cursor: pointer;
   }
+  .excl-checks label.checked { color: var(--accent); font-weight: 600; }
 
-  /* checkbox */
+  /* single checkbox */
   .opt-checkbox {
     width: 16px; height: 16px;
     accent-color: var(--accent);
     cursor: pointer;
     flex-shrink: 0;
+    margin-top: 2px;
   }
 
   /* ── Progress ────────────────────────────────── */
@@ -347,27 +363,40 @@
   </div>
 </div>
 
-<!-- Options -->
+<!-- Options (collapsible) -->
 <div class="card" id="optCard" style="display:none">
-  <div class="card-label">⚙️ 导入选项</div>
-
-  <div class="option-row">
-    <div>
-      <div class="option-label">🔄 页面顺序</div>
-      <div class="option-sub">逃序：第 1 页在最上方；顺序：第 N 页在最上方</div>
-    </div>
-    <div class="pill-toggle">
-      <button id="btnReverse" class="active" onclick="setOrder(true)">逃序（默认）</button>
-      <button id="btnForward"             onclick="setOrder(false)">顺序</button>
-    </div>
+  <div class="opt-header" onclick="toggleOpts()">
+    <div class="card-label" style="margin-bottom:0">⚙️ 导入选项</div>
+    <span class="opt-chevron" id="optChevron">▼</span>
   </div>
+  <div class="opt-body" id="optBody">
 
-  <div class="option-row">
-    <div>
-      <div class="option-label">□ 添加白色底层</div>
-      <div class="option-sub">在所有页面图层最下方添加纯白色「第 0 页」图层</div>
+    <!-- 页面顺序 -->
+    <div class="option-row">
+      <div>
+        <div class="option-label">🔄 页面顺序</div>
+        <div class="option-sub">第 1 页在最上方 / 第 N 页在最上方</div>
+      </div>
+      <div class="excl-checks">
+        <label id="lblReverse">
+          <input type="checkbox" id="chkReverse" checked onchange="setOrder('reverse')">
+          逃序（默认）
+        </label>
+        <label id="lblForward">
+          <input type="checkbox" id="chkForward" onchange="setOrder('forward')">
+          顺序
+        </label>
+      </div>
     </div>
-    <input type="checkbox" id="addWhiteLayer" class="opt-checkbox" checked>
+
+    <!-- 白色底层 -->
+    <div class="option-row">
+      <div>
+        <div class="option-label">在图层最下方添加纯白色 0 图层</div>
+      </div>
+      <input type="checkbox" id="addWhiteLayer" class="opt-checkbox" checked>
+    </div>
+
   </div>
 </div>
 
@@ -487,12 +516,32 @@ function setDPI(el) {
   selectedDPI = parseInt(el.getAttribute('data-dpi'), 10);
 }
 
-// ─── Order Toggle ──────────────────────────────────────────────────
-function setOrder(rev) {
-  importReverse = rev;
-  document.getElementById('btnReverse').classList.toggle('active', rev);
-  document.getElementById('btnForward').classList.toggle('active', !rev);
+// ─── Options Collapse ────────────────────────────────────────────────
+function toggleOpts() {
+  var body = document.getElementById('optBody');
+  var chev = document.getElementById('optChevron');
+  body.classList.toggle('open');
+  chev.classList.toggle('open');
 }
+
+// ─── Order Toggle (互斥复选框) ───────────────────────────────────
+function setOrder(picked) {
+  if (picked === 'reverse') {
+    importReverse = true;
+    document.getElementById('chkReverse').checked = true;
+    document.getElementById('chkForward').checked = false;
+    document.getElementById('lblReverse').classList.add('checked');
+    document.getElementById('lblForward').classList.remove('checked');
+  } else {
+    importReverse = false;
+    document.getElementById('chkReverse').checked = false;
+    document.getElementById('chkForward').checked = true;
+    document.getElementById('lblReverse').classList.remove('checked');
+    document.getElementById('lblForward').classList.add('checked');
+  }
+}
+// 初始化默认状态高亮
+document.getElementById('lblReverse').classList.add('checked');
 
 // ─── Start Conversion ──────────────────────────────────────────────────────
 function startConvert() {
